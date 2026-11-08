@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611082332';
+import { createBloom, lowPower } from './fx.js?v=202611082341';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;
@@ -114,16 +114,27 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     wheelRR: ['Задние шины · 18"', null, new THREE.Vector3(0, 0.6, 0)],
   };
 
+  // ---------- selectable cars: same chassis, two liveries ----------
+  const CARS = {
+    mercedes: {
+      file: 'mercedes12.glb', accent: TEAL, title: 'Mercedes', sub: '№12 · Антонелли', num: '12',
+      lead: 'Андреа Кими Антонелли. Детализированная 3D-модель в ливрее чёрный · серебро · бирюза. Разберите болид на узлы — монокок с понтонами, Halo, переднее и заднее антикрылья, колёса. Режим рентгена показывает каркас.',
+    },
+    ferrari: {
+      file: 'ferrari16.glb', accent: 0xff1e1e, title: 'Ferrari', sub: '№16 · Леклер', num: '16',
+      lead: 'Шарль Леклер. Та же детализированная модель в ливрее красный · чёрный · белый. Разберите болид на узлы или включите рентген, вращайте и приближайте.',
+    },
+  };
   const loader = new GLTFLoader();
-  const modelUrl = new URL('../models/mercedes12.glb' + new URL(import.meta.url).search, import.meta.url);
-  canvas.parentElement?.classList.add('car-loading');
-  let ready = false;
-  loader.load(modelUrl.href, (gltf) => {
+  const cache = new Map(); // car id -> Promise<{ model, parts, meshes, spinners }>
+  let current = null;
+  let loadToken = 0;
+
+  function prepare(gltf) {
     const model = gltf.scene;
     // GLB is Y-up with the nose along +Z: turn it to face +X and scale to the scene (~6.3 m stage)
     model.rotation.y = Math.PI / 2;
     model.scale.setScalar(1.72);
-    car.add(model);
     model.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(model);
     const c = bb.getCenter(new THREE.Vector3());
@@ -133,6 +144,7 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     model.updateMatrixWorld(true);
 
     const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const meshes = [], spin = [], list = [];
     model.traverse((o) => {
       if (!o.isMesh) return;
       const m = o.material;
@@ -146,17 +158,16 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
         const ctr = geo.boundingBox.getCenter(new THREE.Vector3());
         geo.translate(-ctr.x, -ctr.y, -ctr.z);
         o.position.add(ctr);
-        spinners.push(o);
+        spin.push(o);
       }
       o.userData.mat = m;
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), X.edge);
       e.visible = false;
       o.add(e);
       o.userData.edges = e;
-      allMeshes.push(o);
+      meshes.push(o);
     });
     model.updateMatrixWorld(true);
-
     for (const o of [...model.children]) {
       const def = PARTS[o.name];
       if (!def) continue;
@@ -164,15 +175,68 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
       const explodeWorld = def[1] ?? new THREE.Vector3(Math.sign(wc.x - 0.2) * 0.5, 0, Math.sign(wc.z) * 1.35);
       // explode offsets are given in world space; convert to the model's local frame
       const local = explodeWorld.clone().applyQuaternion(model.quaternion.clone().invert()).divideScalar(model.scale.x);
-      parts.push({ name: o.name, label: def[0], group: o, explode: local, home: o.position.clone(), labelOffset: def[2] ?? new THREE.Vector3(0, 0.4, 0) });
+      list.push({ name: o.name, label: def[0], group: o, explode: local, home: o.position.clone(), labelOffset: def[2] ?? new THREE.Vector3(0, 0.4, 0) });
     }
-    buildLabels();
-    if (xray) setXray(true);
-    ready = true;
-    canvas.parentElement?.classList.remove('car-loading');
-  }, undefined, (err) => {
-    console.warn('car model failed to load', err);
-    canvas.parentElement?.classList.remove('car-loading');
+    return { model, parts: list, meshes, spinners: spin };
+  }
+
+  function loadCar(id) {
+    if (!cache.has(id)) {
+      const url = new URL(`../models/${CARS[id].file}` + new URL(import.meta.url).search, import.meta.url);
+      cache.set(id, loader.loadAsync(url.href).then(prepare));
+      cache.get(id).catch(() => cache.delete(id));
+    }
+    return cache.get(id);
+  }
+
+  const pick = document.getElementById('car-pick');
+  const hero = canvas.parentElement;
+  function setCopy(id) {
+    const c = CARS[id];
+    const q = (sel) => hero?.querySelector(sel);
+    if (q('.hero-copy h1.glitch')) q('.hero-copy h1.glitch').textContent = c.title;
+    if (q('.hero-copy .h1-sub')) q('.hero-copy .h1-sub').textContent = c.sub;
+    if (q('.hero-copy .lead')) q('.hero-copy .lead').textContent = c.lead;
+    if (q('.car-spec b')) q('.car-spec b').textContent = c.num;
+    hero?.setAttribute('data-car', id);
+    pick?.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.car === id));
+    rimT.color.setHex(c.accent);
+    ring.material.color.setHex(c.accent);
+  }
+
+  async function selectCar(id) {
+    if (!CARS[id] || id === current) return;
+    current = id;
+    try { localStorage.setItem('f1p-car', id); } catch { /* storage blocked */ }
+    setCopy(id);
+    const token = ++loadToken;
+    hero?.classList.add('car-loading');
+    try {
+      const entry = await loadCar(id);
+      if (token !== loadToken) return;
+      car.clear();
+      car.add(entry.model);
+      parts.length = 0; parts.push(...entry.parts);
+      allMeshes.length = 0; allMeshes.push(...entry.meshes);
+      spinners.length = 0; spinners.push(...entry.spinners);
+      buildLabels();
+      setXray(xray);
+    } catch (err) {
+      console.warn('car model failed to load', err);
+    } finally {
+      if (token === loadToken) hero?.classList.remove('car-loading');
+    }
+  }
+  pick?.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-car]');
+    if (b) selectCar(b.dataset.car);
+  });
+  let saved = 'mercedes';
+  try { saved = localStorage.getItem('f1p-car') || saved; } catch { /* storage blocked */ }
+  queueMicrotask(() => {
+    selectCar(CARS[saved] ? saved : 'mercedes');
+    // warm the other car in the background so switching is instant
+    setTimeout(() => Object.keys(CARS).forEach((k) => loadCar(k).catch(() => {})), 4000);
   });
 
   // ---------- wind-tunnel airflow ----------
@@ -220,6 +284,7 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
   // ---------- labels ----------
   let labels = [];
   function buildLabels() {
+    for (const l of labels) l.el.remove();
     labels = parts.filter((p) => p.label).map((p) => {
       const el = document.createElement('div');
       el.className = 'part-label';

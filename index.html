@@ -7,7 +7,7 @@
   <meta name="description" content="Лайв-трекинг Формулы 1: 3D-трек, круги, пилоты, конструкторы, результаты, история и новости." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=202611082332" />
+  <link rel="stylesheet" href="css/style.css?v=202611082341" />
   <script type="importmap">
     { "imports": { "three": "./js/vendor/three.module.min.js" } }
   </script>
@@ -40,6 +40,10 @@
           <h1 class="glitch">Mercedes</h1>
           <h1 class="h1-sub">№12 · Антонелли</h1>
           <p class="lead">Андреа Кими Антонелли. Детализированная 3D-модель в ливрее чёрный · серебро · бирюза. Разберите болид на узлы — монокок с понтонами, Halo, переднее и заднее антикрылья, колёса. Режим рентгена показывает каркас.</p>
+          <div class="car-pick" id="car-pick" role="group" aria-label="Выбор болида">
+            <button data-car="mercedes" class="on"><i style="--c:#00d2be"></i>Mercedes <b>12</b></button>
+            <button data-car="ferrari"><i style="--c:#ff1e1e"></i>Ferrari <b>16</b></button>
+          </div>
           <div class="hero-actions">
             <button class="btn primary" id="explode-btn">Разобрать болид</button>
             <button class="btn neon" id="xray-btn">Рентген</button>
@@ -213,6 +217,6 @@
     новости — RSS. Неофициальный фан-проект, не связан с Formula 1.
   </footer>
 
-  <script type="module" src="js/main.js?v=202611082332"></script>
+  <script type="module" src="js/main.js?v=202611082341"></script>
 </body>
 </html>
