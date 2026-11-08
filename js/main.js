@@ -343,5 +343,5 @@ async function loadNews() {
 
 // ---------- boot ----------
 initBackground($('bg-dots'));
-initCar($('car-canvas'), $('car-labels'), $('explode-btn'));
+initCar($('car-canvas'), $('car-labels'), $('explode-btn'), $('xray-btn'));
 route();

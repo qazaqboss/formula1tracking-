@@ -14,6 +14,7 @@ export function createBloom(renderer, scene, camera, { strength = 1.1, radius = 
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   return {
+    bloom,
     render: () => composer.render(),
     setSize: (w, h) => {
       composer.setPixelRatio(renderer.getPixelRatio());

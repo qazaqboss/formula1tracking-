@@ -405,3 +405,15 @@ select {
   .kpi:last-child { grid-column: span 2; }
   .wk { min-width: 78px; padding: 7px 9px; }
 }
+
+/* car spec chips on the 3D car page */
+.hero .glitch { color: #fff; }
+.hero .h1-sub { -webkit-text-stroke: 1px #00d2be; filter: drop-shadow(0 0 8px rgba(0, 210, 190, 0.7)); }
+.car-spec { display: flex; gap: 10px; margin-top: 18px; pointer-events: none; }
+.car-spec span { border: 1px solid rgba(0, 210, 190, 0.45); background: rgba(0, 0, 0, 0.45); padding: 6px 12px; font: 0.62rem var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.car-spec b { display: block; font: 800 1.1rem var(--display); color: #00d2be; letter-spacing: 0; }
+@media (max-width: 760px) {
+  .hero .lead { display: none; }
+  .car-spec { gap: 6px; margin-top: 12px; }
+  .car-spec span { padding: 4px 8px; }
+}
