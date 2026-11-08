@@ -417,3 +417,87 @@ select {
   .car-spec { gap: 6px; margin-top: 12px; }
   .car-spec span { padding: 4px 8px; }
 }
+
+/* ---------- player, tabs, mini tower, driver sheet ---------- */
+.player { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.player #seek { flex: 1; }
+.player .seek-label { color: var(--cyan); font-size: 0.75rem; min-width: 40px; text-align: right; }
+.player .play { min-width: 120px; }
+.dash-tabs { display: none; }
+.mini-tower { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.mini-tower::-webkit-scrollbar { display: none; }
+.mt {
+  flex: 0 0 auto; display: flex; align-items: baseline; gap: 6px; padding: 7px 10px; cursor: pointer;
+  background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line); border-left: 3px solid var(--tc, var(--cyan));
+  color: var(--text); font: 700 0.78rem var(--mono);
+}
+.mt b { color: var(--yellow); }
+.mt small { color: var(--muted); font-weight: 400; font-size: 0.68rem; }
+.mt.more { border-left-color: var(--magenta); color: var(--magenta); }
+.tap-hint { display: none; }
+
+.sheet { position: fixed; inset: 0; z-index: 120; background: rgba(0, 0, 0, 0.6); display: flex; align-items: flex-end; justify-content: center; }
+.sheet-panel {
+  position: relative; width: min(560px, 100%); max-height: 82vh; overflow: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  background: var(--bg2); border-top: 2px solid var(--magenta); box-shadow: 0 -10px 40px rgba(255, 43, 214, 0.25);
+  animation: sheet-in 0.25s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes sheet-in { from { transform: translateY(100%); } }
+.sheet-grab { width: 44px; height: 4px; background: var(--line2); margin: -6px auto 12px; }
+.sheet-panel .close { top: 12px; right: 12px; }
+.sheet-head { display: flex; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 3px solid var(--tc); }
+.sheet-head img { width: 64px; height: 64px; object-fit: cover; background: var(--tc); border-radius: 50%; }
+.sheet-head h3 { color: var(--text); font-size: 1.05rem; letter-spacing: 0.04em; margin: 0; }
+.sheet .stat b { font-size: 1.05rem; }
+.sheet .stat .tyre { width: 18px; height: 18px; margin-right: 4px; }
+
+@media (max-width: 760px) {
+  /* compact header */
+  .live-head h2 { font-size: 1.15rem; margin-bottom: 2px; }
+  .live-sub { display: none; }
+  .live-head { gap: 8px; margin-bottom: 8px; }
+  .status { font-size: 0.62rem; }
+
+  /* KPI tiles become a swipeable strip */
+  .kpis { display: flex; overflow-x: auto; gap: 8px; margin: 0 -12px 10px; padding: 0 12px; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .kpis::-webkit-scrollbar { display: none; }
+  .kpi { flex: 0 0 42%; scroll-snap-align: start; }
+  .kpi:last-child { grid-column: auto; }
+  .weekend { margin: 0 -12px 10px; padding: 0 12px; }
+
+  /* sticky section tabs */
+  .dash-tabs {
+    display: flex; position: sticky; top: 56px; z-index: 40; margin: 0 -12px 10px; padding: 6px 12px;
+    background: rgba(5, 6, 11, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); gap: 4px; overflow-x: auto; scrollbar-width: none;
+  }
+  .dash-tabs::-webkit-scrollbar { display: none; }
+  .dash-tabs button {
+    flex: 1 0 auto; background: none; border: 1px solid transparent; color: var(--muted); padding: 9px 10px;
+    font: 700 0.72rem var(--mono); text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+  }
+  .dash-tabs button.on { color: #000; background: var(--cyan); box-shadow: 0 0 14px rgba(0, 240, 255, 0.5); }
+  .live-grid.tabbed > .card:not(.on) { display: none; }
+  .live-grid.tabbed > .card.on { animation: panel-in 0.25s ease; }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } }
+  .tap-hint { display: block; }
+
+  /* player fixed to the bottom, thumb-friendly */
+  .player {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0; gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(5, 6, 11, 0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--magenta);
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.6);
+  }
+  .view[hidden] .player { display: none; }
+  .player .play { min-width: 0; width: 92px; padding: 11px 6px; }
+  .player select { padding: 9px 4px; }
+  .player .seek-label { min-width: 32px; font-size: 0.68rem; }
+  body.has-player .footer { padding-bottom: 90px; }
+  body.has-player main { padding-bottom: 70px; }
+
+  /* bigger touch rows in the timing tower */
+  .tower td { padding: 10px 3px; }
+  .tower { font-size: 0.8rem; }
+  .track-wrap { height: min(92vw, 420px); }
+  .ticker { margin-bottom: 10px; }
+}

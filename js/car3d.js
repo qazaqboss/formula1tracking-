@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js';
+import { createBloom, lowPower } from './fx.js?v=202611081551';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;

@@ -1,13 +1,14 @@
 // Live / replay race dashboard powered by OpenF1, with an animated demo fallback
-import { openf1, news, schedule, jolpica } from './api.js';
-import { createTrack } from './track3d.js';
-import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js';
+import { openf1, news, schedule, jolpica } from './api.js?v=202611081551';
+import { createTrack } from './track3d.js?v=202611081551';
+import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js?v=202611081551';
 
 const $ = (id) => document.getElementById(id);
 const BIG = { ttl: 10 * 60_000, persist: false, timeout: 30_000 };
 
 const S = {
   sessions: [],
+  sheetFor: null,
   all: [],
   meetings: new Map(),
   session: null,
@@ -65,6 +66,7 @@ export async function initLive() {
     render();
   });
   loadNewsMini();
+  initMobileUi();
   requestAnimationFrame(tick);
 
   try {
@@ -514,6 +516,8 @@ function render(st = stateAt(S.t)) {
   seek.style.setProperty('--p', `${Math.min(100, pct * 100)}%`);
   $('seek-label').textContent = S.mode === 'live' ? 'LIVE' : `${Math.round(pct * 100)}%`;
   renderKpis(st);
+  renderMiniTower(st);
+  if (S.sheetFor != null) renderSheet(st);
   renderTower(st);
   renderRatings(st);
   renderRaceControl();
@@ -533,7 +537,7 @@ function renderTower(st) {
     let tr = S.rows.get(r.num);
     if (!tr) {
       tr = document.createElement('tr');
-      tr.addEventListener('click', () => selectDriver(r.num));
+      tr.addEventListener('click', () => { selectDriver(r.num); if (isPhone()) openSheet(r.num); });
       S.rows.set(r.num, tr);
     }
     const lastCls = r.last && r.last.lap_duration === st.bestLap ? 'fl' : r.last && r.last.lap_duration === r.pb ? 'pb' : '';
@@ -604,6 +608,103 @@ function renderWeather() {
        <span>Влажн. <b>${w.humidity}%</b></span><span>Ветер <b>${w.wind_speed} м/с</b></span>
        <span>Дождь <b>${w.rainfall ? 'да' : 'нет'}</b></span>`
     : '';
+}
+
+// ---------- phone UI: tabs, swipe, driver sheet ----------
+const phoneMq = matchMedia('(max-width: 760px)');
+const isPhone = () => phoneMq.matches;
+const PANELS = ['race', 'timing', 'laps', 'ratings', 'info'];
+let panel = 'race';
+try { panel = localStorage.getItem('f1p-panel') || 'race'; } catch { /* storage blocked */ }
+
+function setPanel(p, { scroll = true } = {}) {
+  if (!PANELS.includes(p)) p = 'race';
+  panel = p;
+  try { localStorage.setItem('f1p-panel', p); } catch { /* storage blocked */ }
+  $('dash-tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.panel === p));
+  $('live-grid').querySelectorAll(':scope > .card').forEach((c) => c.classList.toggle('on', c.dataset.panel === p));
+  if (scroll && isPhone()) {
+    const top = $('dash-tabs').getBoundingClientRect().top + scrollY - 58;
+    if (scrollY > top) scrollTo({ top, behavior: 'smooth' });
+  }
+  if (S.drivers.size) render();
+}
+
+function applyLayout() {
+  $('live-grid').classList.toggle('tabbed', isPhone());
+  document.body.classList.toggle('has-player', isPhone() && !$('view-live').hidden);
+  setPanel(panel, { scroll: false });
+}
+
+function initMobileUi() {
+  $('dash-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-panel]');
+    if (b) setPanel(b.dataset.panel);
+  });
+  phoneMq.addEventListener('change', applyLayout);
+  new MutationObserver(applyLayout).observe($('view-live'), { attributes: true, attributeFilter: ['hidden'] });
+  // horizontal swipe on the dashboard switches tabs (ignored on the 3D track, which uses drags)
+  let sx = 0, sy = 0, st = 0;
+  const grid = $('live-grid');
+  grid.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.track-wrap, canvas')) { st = 0; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+  }, { passive: true });
+  grid.addEventListener('touchend', (e) => {
+    if (!st || !isPhone()) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    if (Date.now() - st < 600 && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+      const i = PANELS.indexOf(panel) + (dx < 0 ? 1 : -1);
+      if (i >= 0 && i < PANELS.length) setPanel(PANELS[i]);
+    }
+  }, { passive: true });
+  $('sheet-close').addEventListener('click', closeSheet);
+  $('sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeSheet(); });
+  applyLayout();
+}
+
+function renderMiniTower(st) {
+  const top = st.rows.filter((r) => r.pos !== 99).slice(0, 5);
+  $('mini-tower').innerHTML = top.map((r, i) => `<button class="mt" data-num="${r.num}" style="--tc:#${esc(r.d.team_colour || '888')}">
+      <b>${r.pos}</b>${esc(r.d.name_acronym)}<small>${i === 0 ? (isRace() ? 'лидер' : fmtLap(r.pb)) : isRace() ? fmtGap(r.gap) : isFinite(r.pb) && isFinite(top[0].pb) ? `+${(r.pb - top[0].pb).toFixed(3)}` : '—'}</small></button>`).join('')
+    + (st.rows.length > 5 ? '<button class="mt more" data-more="1">все →</button>' : '');
+  $('mini-tower').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.more) { setPanel('timing'); return; }
+    selectDriver(+b.dataset.num);
+    if (isPhone()) openSheet(+b.dataset.num);
+  }));
+}
+
+function openSheet(num) {
+  S.sheetFor = num;
+  $('sheet').hidden = false;
+  renderSheet(stateAt(S.t));
+}
+function closeSheet() { S.sheetFor = null; $('sheet').hidden = true; }
+
+function renderSheet(st) {
+  const r = st.rows.find((x) => x.num === S.sheetFor);
+  if (!r) return;
+  const comp = r.stint?.compound;
+  const age = r.stint ? (r.stint.tyre_age_at_start || 0) + Math.max(0, r.lapNo - r.stint.lap_start) : null;
+  const recent = r.laps.slice(-6).reverse();
+  const stat = (v, l, cls = '') => `<div class="stat"><b class="${cls}">${v}</b><span>${l}</span></div>`;
+  $('sheet-body').innerHTML = `
+    <div class="sheet-head" style="--tc:#${esc(r.d.team_colour || '888')}">
+      ${r.d.headshot_url ? `<img src="${esc(safeUrl(r.d.headshot_url))}" alt="" onerror="this.remove()">` : ''}
+      <div><p class="eyebrow">P${r.pos === 99 ? '—' : r.pos} · ${esc(r.d.team_name || '')}</p><h3>${esc(r.d.full_name || r.d.name_acronym)}</h3></div>
+    </div>
+    <div class="stat-grid">
+      ${stat(r.pos === 99 ? '—' : r.pos, 'позиция')}
+      ${stat(st.rows[0] === r ? 'ЛИДЕР' : isRace() ? fmtGap(r.gap) : isFinite(r.pb) && isFinite(st.rows[0].pb) ? `+${(r.pb - st.rows[0].pb).toFixed(3)}` : '—', isRace() ? 'до лидера' : 'до быстрейшего')}
+      ${stat(r.rating == null ? '—' : r.rating.toFixed(1), 'оценка', r.rating > 7.5 ? 'up' : r.rating > 5 ? '' : 'down')}
+      ${stat(fmtLap(r.last?.lap_duration), 'последний')}
+      ${stat(isFinite(r.pb) ? fmtLap(r.pb) : '—', 'лучший круг', r.pb === st.bestLap ? 'fl' : '')}
+      ${stat(comp ? `<span class="tyre ${esc(comp)}">${esc(comp[0])}</span>${age}` : '—', 'шины · круги')}
+    </div>
+    ${recent.length ? `<h3>Последние круги</h3><table class="mini-table">${recent.map((l) => `<tr><td>Круг ${l.lap_number}${l.is_pit_out_lap ? ' · пит' : ''}</td><td class="${l.lap_duration === r.pb ? 'pb' : ''}">${fmtLap(l.lap_duration)}</td></tr>`).join('')}</table>` : '<p class="muted">Кругов пока нет.</p>'}
+    <button class="btn small neon" id="sheet-laps" style="margin-top:14px;width:100%">График кругов</button>`;
+  $('sheet-laps').onclick = () => { closeSheet(); setPanel('laps'); };
 }
 
 function selectDriver(num) {

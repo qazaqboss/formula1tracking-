@@ -7,7 +7,7 @@
   <meta name="description" content="Лайв-трекинг Формулы 1: 3D-трек, круги, пилоты, конструкторы, результаты, история и новости." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=202611081551" />
   <script type="importmap">
     { "imports": { "three": "./js/vendor/three.module.min.js" } }
   </script>
@@ -66,71 +66,90 @@
         <div class="live-head">
           <div class="live-title-wrap">
             <p class="eyebrow status loading" id="live-status">Подключение…</p>
-            <h2 class="glitch" id="live-title" data-text="">Лайв-дашборд</h2>
-            <p class="muted" id="live-sub"></p>
+            <h2 class="glitch" id="live-title">Лайв-дашборд</h2>
+            <p class="muted live-sub" id="live-sub"></p>
           </div>
           <div class="live-controls">
             <select id="session-select" aria-label="Сессия"></select>
-            <div class="ctl-row">
-              <button class="btn small neon" id="replay-toggle">▶ Играть</button>
-              <select id="replay-speed" aria-label="Скорость">
-                <option value="1">1×</option><option value="5">5×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option>
-              </select>
-            </div>
           </div>
         </div>
         <div class="weekend" id="weekend"></div>
         <div class="kpis" id="kpis"></div>
-        <div class="seek-row">
-          <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Перемотка гонки" />
-          <span id="seek-label" class="mono">0%</span>
-        </div>
-        <div class="ticker"><span class="ticker-tag">RACE CONTROL</span><div class="ticker-viewport"><div class="ticker-track" id="ticker-track"></div></div></div>
 
-        <div class="live-grid">
-          <div class="card track-card">
+        <!-- player: inline on desktop, fixed to the bottom of the screen on phones -->
+        <div class="player" id="player">
+          <button class="btn small neon play" id="replay-toggle" aria-label="Играть / пауза">▶ Играть</button>
+          <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Перемотка" />
+          <span id="seek-label" class="mono seek-label">0%</span>
+          <select id="replay-speed" aria-label="Скорость">
+            <option value="1">1×</option><option value="5">5×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option>
+          </select>
+        </div>
+        <div class="ticker"><span class="ticker-tag">RC</span><div class="ticker-viewport"><div class="ticker-track" id="ticker-track"></div></div></div>
+
+        <nav class="dash-tabs" id="dash-tabs" aria-label="Разделы дашборда">
+          <button data-panel="race" class="on">Трасса</button>
+          <button data-panel="timing">Тайминг</button>
+          <button data-panel="laps">Круги</button>
+          <button data-panel="ratings">Оценки</button>
+          <button data-panel="info">Инфо</button>
+        </nav>
+
+        <div class="live-grid" id="live-grid">
+          <div class="card track-card" data-panel="race">
             <div class="card-head"><h3>3D-трасса</h3><span class="muted" id="track-clock">—</span></div>
             <div class="track-wrap"><canvas id="track-canvas"></canvas><div id="track-tags"></div></div>
+            <div class="mini-tower" id="mini-tower"></div>
             <div class="weather" id="weather"></div>
           </div>
 
-          <div class="card tower-card">
+          <div class="card tower-card" data-panel="timing">
             <div class="card-head"><h3>Тайминг</h3><span class="lap-badge" id="lap-badge">Круг —</span></div>
             <table class="tower" id="tower">
-              <thead><tr><th>#</th><th>Пилот</th><th>Интервал</th><th class="c-gap">Лидер</th><th>Круг</th><th class="c-tyre">Шины</th><th>Оценка</th></tr></thead>
+              <thead><tr><th>#</th><th>Пилот</th><th>Интервал</th><th class="c-gap">Лидер</th><th>Круг</th><th class="c-tyre">Шины</th><th>Оц.</th></tr></thead>
               <tbody></tbody>
             </table>
+            <p class="muted small tap-hint">Нажмите на пилота — откроется его карточка</p>
           </div>
 
-          <div class="card lap-card">
+          <div class="card lap-card" data-panel="laps">
             <div class="card-head"><h3>Круги</h3><select id="lap-driver" aria-label="Пилот"></select></div>
             <canvas id="lap-chart"></canvas>
           </div>
 
-          <div class="card quali-card" id="quali-card" hidden>
+          <div class="card quali-card" id="quali-card" data-panel="timing" hidden>
             <div class="card-head"><h3 id="quali-title">Итоги квалификации</h3><span class="muted">официально · Jolpica</span></div>
             <div id="quali-body"></div>
           </div>
 
-          <div class="card rate-card">
+          <div class="card rate-card" data-panel="ratings">
             <div class="card-head"><h3>Оценка пилотов</h3><span class="muted">алгоритм F1 Pulse</span></div>
             <div id="ratings"></div>
           </div>
 
-          <div class="card rc-card">
+          <div class="card rc-card" data-panel="info">
             <div class="card-head"><h3>Дирекция гонки</h3></div>
             <ul class="feed" id="race-control"></ul>
           </div>
 
-          <div class="card news-card-live">
+          <div class="card news-card-live" data-panel="info">
             <div class="card-head"><h3>Последние новости</h3><a href="#news" class="muted">все →</a></div>
             <ul class="feed news-mini" id="live-news"></ul>
           </div>
 
-          <div class="card links-card">
+          <div class="card links-card" data-panel="info">
             <div class="card-head"><h3>Ссылки на гонку</h3></div>
             <div class="links" id="race-links"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- driver bottom sheet -->
+      <div class="sheet" id="sheet" hidden>
+        <div class="sheet-panel" role="dialog" aria-label="Карточка пилота">
+          <div class="sheet-grab"></div>
+          <button class="close" id="sheet-close" aria-label="Закрыть">✕</button>
+          <div id="sheet-body"></div>
         </div>
       </div>
     </section>
@@ -194,6 +213,6 @@
     новости — RSS. Неофициальный фан-проект, не связан с Formula 1.
   </footer>
 
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=202611081551"></script>
 </body>
 </html>
