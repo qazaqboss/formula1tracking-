@@ -1,7 +1,7 @@
 // Live / replay race dashboard powered by OpenF1, with an animated demo fallback
-import { openf1, news, schedule, jolpica } from './api.js?v=202611090002';
-import { createTrack } from './track3d.js?v=202611090002';
-import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js?v=202611090002';
+import { openf1, news, schedule, jolpica } from './api.js?v=202611090032';
+import { createTrack } from './track3d.js?v=202611090032';
+import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js?v=202611090032';
 
 const $ = (id) => document.getElementById(id);
 const BIG = { ttl: 10 * 60_000, persist: false, timeout: 30_000 };

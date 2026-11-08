@@ -124,16 +124,19 @@ select {
 #car-canvas:active { cursor: grabbing; }
 .hero-copy { position: absolute; left: clamp(16px, 5vw, 80px); top: 12%; max-width: 500px; pointer-events: none; z-index: 2; }
 .hero-copy .hero-actions, .hero-copy .car-pick { pointer-events: auto; }
-.car-pick { display: inline-flex; gap: 6px; margin-top: 18px; padding: 4px; border: 1px solid var(--line); background: rgba(5, 6, 11, 0.6); backdrop-filter: blur(6px); }
-.car-pick button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid transparent; background: none; color: var(--muted); font: 600 0.72rem var(--mono); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
-.car-pick button i { width: 10px; height: 10px; background: var(--c); box-shadow: 0 0 10px var(--c); }
-.car-pick button b { color: var(--c, inherit); font-family: Orbitron, sans-serif; }
-.car-pick button:hover { color: #fff; }
-.car-pick button.on { color: #fff; border-color: var(--cyan); background: rgba(0, 240, 255, 0.08); }
-.hero[data-car="ferrari"] .car-pick button.on { border-color: #ff1e1e; background: rgba(255, 30, 30, 0.1); }
-.hero[data-car="ferrari"] .h1-sub { -webkit-text-stroke-color: #ff3b3b; filter: drop-shadow(0 0 8px rgba(255, 40, 40, 0.6)); }
+.car-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; max-width: 520px; }
+.car-pick button { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(5, 6, 11, 0.6); backdrop-filter: blur(6px); color: var(--muted); font: 600 0.66rem var(--mono); letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: color .2s, border-color .2s, background .2s; }
+.car-pick button i { width: 8px; height: 8px; background: var(--c); box-shadow: 0 0 8px var(--c); flex: none; }
+.car-pick button b { color: var(--c); font-family: Orbitron, sans-serif; }
+.car-pick button:hover { color: #fff; border-color: var(--c); }
+.car-pick button.on { color: #fff; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
+@media (max-width: 700px) {
+  .car-pick { flex-wrap: nowrap; overflow-x: auto; max-width: none; margin-right: -16px; padding-right: 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .car-pick::-webkit-scrollbar { display: none; }
+  .car-pick button { scroll-snap-align: center; }
+}
 .hero h1 { font-size: clamp(2.2rem, 6vw, 4.8rem); line-height: 1; font-weight: 900; margin: 0; text-transform: uppercase; }
-.hero .h1-sub { font-size: clamp(1.3rem, 3.4vw, 2.6rem); color: transparent; -webkit-text-stroke: 1px var(--cyan); filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.6)); margin: 6px 0 0; }
+.hero .h1-sub { font-size: clamp(1.3rem, 3.4vw, 2.6rem); color: transparent; -webkit-text-stroke: 1px var(--team, var(--cyan)); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--team, #00f0ff) 60%, transparent)); margin: 6px 0 0; }
 .lead { color: #b5c0dc; font-size: 1.02rem; margin-top: 18px; }
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
 .hero-hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); color: var(--muted); font: 0.7rem var(--mono); letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap; }

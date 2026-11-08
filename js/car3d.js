@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611090002';
+import { createBloom, lowPower } from './fx.js?v=202611090032';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;
@@ -116,21 +116,31 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     hubFL: ['', null], hubFR: ['', null], hubRL: ['', null], hubRR: ['', null],
   };
 
-  // ---------- selectable cars: same chassis, two liveries ----------
-  const CARS = {
-    mercedes: {
-      file: 'mercedes12.glb', accent: TEAL, title: 'Mercedes', sub: '№12 · Антонелли', num: '12',
-      lead: 'Андреа Кими Антонелли. Детализированная 3D-модель в ливрее чёрный · серебро · бирюза. Разберите болид на узлы — монокок с понтонами, Halo, переднее и заднее антикрылья, колёса. Режим рентгена показывает каркас.',
-    },
-    ferrari: {
-      file: 'ferrari16.glb', accent: 0xff1e1e, title: 'Ferrari', sub: '№16 · Леклер', num: '16',
-      lead: 'Шарль Леклер. Та же детализированная модель в ливрее красный · чёрный · белый. Разберите болид на узлы или включите рентген, вращайте и приближайте.',
-    },
-  };
+  // ---------- selectable cars: one shared chassis, a livery (2 textures) per team ----------
+  // 2026 grid, one driver per team; liveries are colour schemes only (no sponsor or team marks)
+  const TEAMS = [
+    { id: 'mclaren', name: 'McLaren', driver: 'Ландо Норрис', short: 'Норрис', num: '1', accent: 0xff8000, colours: 'папайя · антрацит' },
+    { id: 'ferrari', name: 'Ferrari', driver: 'Шарль Леклер', short: 'Леклер', num: '16', accent: 0xff1e1e, colours: 'красный · чёрный · белый' },
+    { id: 'redbull', name: 'Red Bull', driver: 'Макс Ферстаппен', short: 'Ферстаппен', num: '3', accent: 0x3d6ff0, colours: 'тёмно-синий · красный · жёлтый' },
+    { id: 'mercedes', name: 'Mercedes', driver: 'Андреа Кими Антонелли', short: 'Антонелли', num: '12', accent: TEAL, colours: 'чёрный · серебро · бирюза' },
+    { id: 'astonmartin', name: 'Aston Martin', driver: 'Фернандо Алонсо', short: 'Алонсо', num: '14', accent: 0xcedc00, colours: 'британский зелёный · лайм' },
+    { id: 'alpine', name: 'Alpine', driver: 'Пьер Гасли', short: 'Гасли', num: '10', accent: 0xff6eb4, colours: 'синий · розовый' },
+    { id: 'williams', name: 'Williams', driver: 'Александр Албон', short: 'Албон', num: '23', accent: 0x1f7dff, colours: 'тёмно-синий · голубой' },
+    { id: 'racingbulls', name: 'Racing Bulls', driver: 'Лиам Лоусон', short: 'Лоусон', num: '30', accent: 0x6c98ff, colours: 'белый · синий · красный' },
+    { id: 'haas', name: 'Haas', driver: 'Оливер Берман', short: 'Берман', num: '87', accent: 0xe0141e, colours: 'белый · чёрный · красный' },
+    { id: 'audi', name: 'Audi', driver: 'Габриэл Бортолето', short: 'Бортолето', num: '5', accent: 0xf50537, colours: 'титан · чёрный · красный' },
+    { id: 'cadillac', name: 'Cadillac', driver: 'Валттери Боттас', short: 'Боттас', num: '77', accent: 0xc8a55a, colours: 'чёрный · белый · золото' },
+  ];
+  const byId = new Map(TEAMS.map((t) => [t.id, t]));
+  const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
+  const ver = new URL(import.meta.url).search;
+  const asset = (path) => new URL(`../models/${path}${ver}`, import.meta.url).href;
   const loader = new GLTFLoader();
-  const cache = new Map(); // car id -> Promise<{ model, parts, meshes, spinners }>
+  const texLoader = new THREE.TextureLoader();
+  const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  let bodyMat = null; // the single PBR material shared by every node of the car
   let current = null;
-  let loadToken = 0;
+  let pending = 0;
 
   function prepare(gltf) {
     const model = gltf.scene;
@@ -144,12 +154,10 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     model.position.z -= c.z;
     model.position.y -= bb.min.y;
     model.updateMatrixWorld(true);
-
-    const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    const meshes = [], spin = [], list = [];
     model.traverse((o) => {
       if (!o.isMesh) return;
       const m = o.material;
+      bodyMat = m;
       for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (m[k]) m[k].anisotropy = maxAniso;
       m.envMapIntensity = 2.2;
       if ('clearcoat' in m) { m.clearcoat = Math.max(m.clearcoat, 0.6); m.clearcoatRoughness = 0.08; }
@@ -160,14 +168,14 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
         const ctr = geo.boundingBox.getCenter(new THREE.Vector3());
         geo.translate(-ctr.x, -ctr.y, -ctr.z);
         o.position.add(ctr);
-        spin.push(o);
+        spinners.push(o);
       }
       o.userData.mat = m;
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), X.edge);
       e.visible = false;
       o.add(e);
       o.userData.edges = e;
-      meshes.push(o);
+      allMeshes.push(o);
     });
     model.updateMatrixWorld(true);
     for (const o of [...model.children]) {
@@ -177,56 +185,71 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
       const explodeWorld = def[1] ?? new THREE.Vector3(Math.sign(wc.x - 0.2) * 0.5, 0, Math.sign(wc.z) * 1.35);
       // explode offsets are given in world space; convert to the model's local frame
       const local = explodeWorld.clone().applyQuaternion(model.quaternion.clone().invert()).divideScalar(model.scale.x);
-      list.push({ name: o.name, label: def[0], group: o, explode: local, home: o.position.clone(), labelOffset: def[2] ?? new THREE.Vector3(0, 0.4, 0) });
+      parts.push({ name: o.name, label: def[0], group: o, explode: local, home: o.position.clone(), labelOffset: def[2] ?? new THREE.Vector3(0, 0.4, 0) });
     }
-    return { model, parts: list, meshes, spinners: spin };
+    car.add(model);
+    buildLabels();
+    setXray(xray);
   }
+  const modelReady = loader.loadAsync(asset('car.glb')).then(prepare);
 
-  function loadCar(id) {
-    if (!cache.has(id)) {
-      const url = new URL(`../models/${CARS[id].file}` + new URL(import.meta.url).search, import.meta.url);
-      cache.set(id, loader.loadAsync(url.href).then(prepare));
-      cache.get(id).catch(() => cache.delete(id));
+  const liveries = new Map(); // team id -> Promise<{ map, mr }>
+  function loadLivery(id) {
+    if (!liveries.has(id)) {
+      const tex = async (file, srgb) => {
+        const t = await texLoader.loadAsync(asset(`liveries/${file}`));
+        t.flipY = false; // glTF UV convention
+        t.anisotropy = maxAniso;
+        if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+        return t;
+      };
+      const p = Promise.all([tex(`${id}.jpg`, true), tex(`${id}-mr.jpg`, false)]).then(([map, mr]) => ({ map, mr }));
+      p.catch(() => liveries.delete(id));
+      liveries.set(id, p);
     }
-    return cache.get(id);
+    return liveries.get(id);
   }
 
   const pick = document.getElementById('car-pick');
   const hero = canvas.parentElement;
-  function setCopy(id) {
-    const c = CARS[id];
+  if (pick) {
+    pick.innerHTML = TEAMS.map((t) => `<button type="button" data-car="${t.id}" style="--c:${hex(t.accent)}" title="${t.name} · №${t.num} ${t.driver}"><i></i>${t.name} <b>${t.num}</b></button>`).join('');
+  }
+  function setCopy(t) {
     const q = (sel) => hero?.querySelector(sel);
-    if (q('.hero-copy h1.glitch')) q('.hero-copy h1.glitch').textContent = c.title;
-    if (q('.hero-copy .h1-sub')) q('.hero-copy .h1-sub').textContent = c.sub;
-    if (q('.hero-copy .lead')) q('.hero-copy .lead').textContent = c.lead;
-    if (q('.car-spec b')) q('.car-spec b').textContent = c.num;
-    hero?.setAttribute('data-car', id);
-    pick?.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.car === id));
-    rimT.color.setHex(c.accent);
-    ring.material.color.setHex(c.accent);
+    if (q('.hero-copy h1.glitch')) q('.hero-copy h1.glitch').textContent = t.name;
+    if (q('.hero-copy .h1-sub')) q('.hero-copy .h1-sub').textContent = `№${t.num} · ${t.short}`;
+    if (q('.hero-copy .lead')) q('.hero-copy .lead').textContent = `${t.driver}. Ливрея ${t.colours}. Разберите болид на узлы — монокок, Halo, антикрылья, колёса — или включите рентген.`;
+    if (q('.car-spec b')) q('.car-spec b').textContent = t.num;
+    hero?.style.setProperty('--team', hex(t.accent));
+    pick?.querySelectorAll('button').forEach((b) => {
+      const on = b.dataset.car === t.id;
+      b.classList.toggle('on', on);
+      if (on && pick.scrollWidth > pick.clientWidth) b.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+    });
+    rimT.color.setHex(t.accent);
+    ring.material.color.setHex(t.accent);
   }
 
   async function selectCar(id) {
-    if (!CARS[id] || id === current) return;
+    const t = byId.get(id);
+    if (!t || id === current) return;
     current = id;
     try { localStorage.setItem('f1p-car', id); } catch { /* storage blocked */ }
-    setCopy(id);
-    const token = ++loadToken;
+    setCopy(t);
+    pending++;
     hero?.classList.add('car-loading');
     try {
-      const entry = await loadCar(id);
-      if (token !== loadToken) return;
-      car.clear();
-      car.add(entry.model);
-      parts.length = 0; parts.push(...entry.parts);
-      allMeshes.length = 0; allMeshes.push(...entry.meshes);
-      spinners.length = 0; spinners.push(...entry.spinners);
-      buildLabels();
-      setXray(xray);
+      const [{ map, mr }] = await Promise.all([loadLivery(id), modelReady]);
+      if (current !== id || !bodyMat) return;
+      bodyMat.map = map;
+      bodyMat.metalnessMap = mr;
+      bodyMat.roughnessMap = mr;
+      bodyMat.needsUpdate = true;
     } catch (err) {
-      console.warn('car model failed to load', err);
+      console.warn('livery failed to load', err);
     } finally {
-      if (token === loadToken) hero?.classList.remove('car-loading');
+      if (--pending === 0) hero?.classList.remove('car-loading');
     }
   }
   pick?.addEventListener('click', (e) => {
@@ -235,11 +258,7 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
   });
   let saved = 'mercedes';
   try { saved = localStorage.getItem('f1p-car') || saved; } catch { /* storage blocked */ }
-  queueMicrotask(() => {
-    selectCar(CARS[saved] ? saved : 'mercedes');
-    // warm the other car in the background so switching is instant
-    setTimeout(() => Object.keys(CARS).forEach((k) => loadCar(k).catch(() => {})), 4000);
-  });
+  queueMicrotask(() => selectCar(byId.has(saved) ? saved : 'mercedes'));
 
   // ---------- wind-tunnel airflow ----------
   const N = lowPower ? 600 : 1400;

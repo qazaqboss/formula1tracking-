@@ -4,10 +4,26 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>F1 Pulse — трекинг Формулы 1</title>
-  <meta name="description" content="Лайв-трекинг Формулы 1: 3D-трек, круги, пилоты, конструкторы, результаты, история и новости." />
+  <meta name="description" content="Живой тайминг гонки Формулы 1 в реальном времени, 3D-трасса с болидами, круги, шины и оценки пилотов, 3D-болиды всех 11 команд 2026." />
+  <meta name="theme-color" content="#05060b" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="F1 Pulse" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:url" content="https://formula1tracking.vercel.app/" />
+  <meta property="og:title" content="F1 Pulse — Формула 1 в реальном времени" />
+  <meta property="og:description" content="Живой тайминг гонки Формулы 1 в реальном времени, 3D-трасса с болидами, круги, шины и оценки пилотов, 3D-болиды всех 11 команд 2026." />
+  <meta property="og:image" content="https://formula1tracking.vercel.app/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="F1 Pulse: болиды McLaren, Ferrari и Mercedes в неоновом свете" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="F1 Pulse — Формула 1 в реальном времени" />
+  <meta name="twitter:description" content="Живой тайминг гонки Формулы 1 в реальном времени, 3D-трасса с болидами, круги, шины и оценки пилотов, 3D-болиды всех 11 команд 2026." />
+  <meta name="twitter:image" content="https://formula1tracking.vercel.app/og.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=202611090002" />
+  <link rel="stylesheet" href="css/style.css?v=202611090032" />
   <script type="importmap">
     { "imports": { "three": "./js/vendor/three.module.min.js" } }
   </script>
@@ -40,10 +56,7 @@
           <h1 class="glitch">Mercedes</h1>
           <h1 class="h1-sub">№12 · Антонелли</h1>
           <p class="lead">Андреа Кими Антонелли. Детализированная 3D-модель в ливрее чёрный · серебро · бирюза. Разберите болид на узлы — монокок с понтонами, Halo, переднее и заднее антикрылья, колёса. Режим рентгена показывает каркас.</p>
-          <div class="car-pick" id="car-pick" role="group" aria-label="Выбор болида">
-            <button data-car="mercedes" class="on"><i style="--c:#00d2be"></i>Mercedes <b>12</b></button>
-            <button data-car="ferrari"><i style="--c:#ff1e1e"></i>Ferrari <b>16</b></button>
-          </div>
+          <div class="car-pick" id="car-pick" role="group" aria-label="Выбор команды"></div>
           <div class="hero-actions">
             <button class="btn primary" id="explode-btn">Разобрать болид</button>
             <button class="btn neon" id="xray-btn">Рентген</button>
@@ -217,6 +230,6 @@
     новости — RSS. Неофициальный фан-проект, не связан с Formula 1.
   </footer>
 
-  <script type="module" src="js/main.js?v=202611090002"></script>
+  <script type="module" src="js/main.js?v=202611090032"></script>
 </body>
 </html>
