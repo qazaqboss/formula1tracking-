@@ -5,8 +5,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611090032';
+import { createBloom, lowPower } from './fx.js?v=202611090337';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;
@@ -102,22 +103,38 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
   const allMeshes = [];
   const spinners = [];
 
-  // node name in the GLB -> label + explode direction (world space, nose points to +X)
-  const PARTS = {
-    body: ['Монокок · понтоны · днище', new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.2, 0.55, 0)],
-    frontwing: ['Переднее антикрыло', new THREE.Vector3(1.0, -0.05, 0), new THREE.Vector3(0.2, 0.3, 0)],
-    rearwing: ['Заднее антикрыло · DRS', new THREE.Vector3(-1.0, 0.75, 0), new THREE.Vector3(0, 0.55, 0)],
-    halo: ['Halo · титан', new THREE.Vector3(0.2, 1.3, 0), new THREE.Vector3(0, 0.3, 0)],
-    wheelFL: ['', null],
-    wheelFR: ['Передние шины · 18"', null, new THREE.Vector3(0, 0.55, 0)],
-    wheelRL: ['', null],
-    wheelRR: ['Задние шины · 18"', null, new THREE.Vector3(0, 0.6, 0)],
-    // uprights / brake ducts: move out with their wheel when exploded but never spin
-    hubFL: ['', null], hubFR: ['', null], hubRL: ['', null], hubRR: ['', null],
+  // node name in the GLB -> label + explode direction (world space, nose points to +X), per model
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  const MODELS = {
+    // 2026 chassis shared by every team (liveries are swapped as textures)
+    car: {
+      file: 'car.glb', livery: true, spec: [null, ['V6', '1.6 турбо-гибрид'], ['18"', 'диски']],
+      parts: {
+        body: ['Монокок · понтоны · днище', V3(0, 0, 0), V3(-0.2, 0.55, 0)],
+        frontwing: ['Переднее антикрыло', V3(1.0, -0.05, 0), V3(0.2, 0.3, 0)],
+        rearwing: ['Заднее антикрыло · DRS', V3(-1.0, 0.75, 0), V3(0, 0.55, 0)],
+        halo: ['Halo · титан', V3(0.2, 1.3, 0), V3(0, 0.3, 0)],
+        wheelFL: ['', null], wheelFR: ['Передние шины · 18"', null, V3(0, 0.55, 0)],
+        wheelRL: ['', null], wheelRR: ['Задние шины · 18"', null, V3(0, 0.6, 0)],
+        // uprights / brake ducts: move out with their wheel when exploded but never spin
+        hubFL: ['', null], hubFR: ['', null], hubRL: ['', null], hubRR: ['', null],
+      },
+    },
+    // Ferrari SF90 (2019), its own detailed model
+    sf90: {
+      file: 'sf90.glb', livery: false, spec: [null, ['V6', '1.6 турбо-гибрид'], ['13"', 'диски']],
+      parts: {
+        body: ['Шасси · кузов · антикрылья', V3(0, 0, 0), V3(-0.2, 0.6, 0)],
+        cockpit: ['Кокпит · руль · сиденье', V3(0.1, 1.5, 0), V3(0, 0.35, 0)],
+        wheelFL: ['', null], wheelFR: ['Передние шины · 13"', null, V3(0, 0.55, 0)],
+        wheelRL: ['', null], wheelRR: ['Задние шины · 13"', null, V3(0, 0.6, 0)],
+      },
+    },
   };
 
-  // ---------- selectable cars: one shared chassis, a livery (2 textures) per team ----------
-  // 2026 grid, one driver per team; liveries are colour schemes only (no sponsor or team marks)
+  // ---------- selectable cars ----------
+  // 2026 grid (one driver per team; liveries are colour schemes only, no sponsor or team marks)
+  // plus the 2019 Ferrari SF90 as a separate model
   const TEAMS = [
     { id: 'mclaren', name: 'McLaren', driver: 'Ландо Норрис', short: 'Норрис', num: '1', accent: 0xff8000, colours: 'папайя · антрацит' },
     { id: 'ferrari', name: 'Ferrari', driver: 'Шарль Леклер', short: 'Леклер', num: '16', accent: 0xff1e1e, colours: 'красный · чёрный · белый' },
@@ -130,23 +147,34 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     { id: 'haas', name: 'Haas', driver: 'Оливер Берман', short: 'Берман', num: '87', accent: 0xe0141e, colours: 'белый · чёрный · красный' },
     { id: 'audi', name: 'Audi', driver: 'Габриэл Бортолето', short: 'Бортолето', num: '5', accent: 0xf50537, colours: 'титан · чёрный · красный' },
     { id: 'cadillac', name: 'Cadillac', driver: 'Валттери Боттас', short: 'Боттас', num: '77', accent: 0xc8a55a, colours: 'чёрный · белый · золото' },
+    {
+      id: 'sf90', model: 'sf90', name: 'SF90', label: 'SF90 · 2019', driver: 'Себастьян Феттель', short: 'Феттель', num: '5', accent: 0xff2a1a,
+      lead: 'Болид Ferrari сезона 2019 — отдельная детализированная модель. Разберите его на узлы — кузов, кокпит, колёса — или включите рентген.',
+    },
   ];
   const byId = new Map(TEAMS.map((t) => [t.id, t]));
   const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
   const ver = new URL(import.meta.url).search;
   const asset = (path) => new URL(`../models/${path}${ver}`, import.meta.url).href;
   const loader = new GLTFLoader();
+  const draco = new DRACOLoader();
+  draco.setDecoderPath(new URL('./vendor/jsm/libs/draco/gltf/', import.meta.url).href);
+  loader.setDRACOLoader(draco);
   const texLoader = new THREE.TextureLoader();
   const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  let bodyMat = null; // the single PBR material shared by every node of the car
+  const STAGE = 6.35; // car length on the stage, scene units
+  let active = null; // the model on stage: { model, parts, meshes, spinners, mat }
   let current = null;
   let pending = 0;
 
-  function prepare(gltf) {
+  function prepare(gltf, def) {
     const model = gltf.scene;
-    // GLB is Y-up with the nose along +Z: turn it to face +X and scale to the scene (~6.3 m stage)
+    const entry = { model, parts: [], meshes: [], spinners: [], mat: null };
+    // GLB is Y-up with the nose along +Z: turn it to face +X and scale it to the stage
     model.rotation.y = Math.PI / 2;
-    model.scale.setScalar(1.72);
+    model.updateMatrixWorld(true);
+    const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+    model.scale.setScalar(STAGE / Math.max(size.x, size.z));
     model.updateMatrixWorld(true);
     const bb = new THREE.Box3().setFromObject(model);
     const c = bb.getCenter(new THREE.Vector3());
@@ -157,41 +185,62 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     model.traverse((o) => {
       if (!o.isMesh) return;
       const m = o.material;
-      bodyMat = m;
+      entry.mat ??= m;
       for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (m[k]) m[k].anisotropy = maxAniso;
       m.envMapIntensity = 2.2;
       if ('clearcoat' in m) { m.clearcoat = Math.max(m.clearcoat, 0.6); m.clearcoatRoughness = 0.08; }
       const geo = o.geometry;
-      if (o.name.startsWith('wheel')) {
-        // pivot each wheel on its own axle so it can spin
-        geo.computeBoundingBox();
-        const ctr = geo.boundingBox.getCenter(new THREE.Vector3());
-        geo.translate(-ctr.x, -ctr.y, -ctr.z);
-        o.position.add(ctr);
-        spinners.push(o);
-      }
       o.userData.mat = m;
       const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), X.edge);
       e.visible = false;
       o.add(e);
       o.userData.edges = e;
-      allMeshes.push(o);
+      entry.meshes.push(o);
     });
+    // a node can hold several meshes (one per material): pivot whole wheel nodes on their axle
+    for (const o of [...model.children]) {
+      if (!o.name.startsWith('wheel')) continue;
+      const box = new THREE.Box3();
+      o.traverse((m) => { if (m.isMesh) { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrix)); } });
+      const ctr = box.getCenter(new THREE.Vector3());
+      if (o.isMesh) o.geometry.translate(-ctr.x, -ctr.y, -ctr.z);
+      else o.children.forEach((ch) => ch.position.sub(ctr));
+      o.position.add(ctr);
+      entry.spinners.push(o);
+    }
     model.updateMatrixWorld(true);
     for (const o of [...model.children]) {
-      const def = PARTS[o.name];
-      if (!def) continue;
+      const p = def.parts[o.name];
+      if (!p) continue;
       const wc = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
-      const explodeWorld = def[1] ?? new THREE.Vector3(Math.sign(wc.x - 0.2) * 0.5, 0, Math.sign(wc.z) * 1.35);
+      const explodeWorld = p[1] ?? new THREE.Vector3(Math.sign(wc.x - 0.2) * 0.5, 0, Math.sign(wc.z) * 1.35);
       // explode offsets are given in world space; convert to the model's local frame
       const local = explodeWorld.clone().applyQuaternion(model.quaternion.clone().invert()).divideScalar(model.scale.x);
-      parts.push({ name: o.name, label: def[0], group: o, explode: local, home: o.position.clone(), labelOffset: def[2] ?? new THREE.Vector3(0, 0.4, 0) });
+      entry.parts.push({ name: o.name, label: p[0], group: o, explode: local, home: o.position.clone(), labelOffset: p[2] ?? new THREE.Vector3(0, 0.4, 0) });
     }
-    car.add(model);
+    return entry;
+  }
+  const models = new Map(); // model key -> Promise<entry>
+  function loadModel(key) {
+    if (!models.has(key)) {
+      const p = loader.loadAsync(asset(MODELS[key].file)).then((g) => prepare(g, MODELS[key]));
+      p.catch(() => models.delete(key));
+      models.set(key, p);
+    }
+    return models.get(key);
+  }
+  function show(entry) {
+    if (active === entry) return;
+    for (const p of active?.parts || []) p.group.position.copy(p.home);
+    active = entry;
+    car.clear();
+    car.add(entry.model);
+    parts.length = 0; parts.push(...entry.parts);
+    allMeshes.length = 0; allMeshes.push(...entry.meshes);
+    spinners.length = 0; spinners.push(...entry.spinners);
     buildLabels();
     setXray(xray);
   }
-  const modelReady = loader.loadAsync(asset('car.glb')).then(prepare);
 
   const liveries = new Map(); // team id -> Promise<{ map, mr }>
   function loadLivery(id) {
@@ -213,14 +262,18 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
   const pick = document.getElementById('car-pick');
   const hero = canvas.parentElement;
   if (pick) {
-    pick.innerHTML = TEAMS.map((t) => `<button type="button" data-car="${t.id}" style="--c:${hex(t.accent)}" title="${t.name} · №${t.num} ${t.driver}"><i></i>${t.name} <b>${t.num}</b></button>`).join('');
+    pick.innerHTML = TEAMS.map((t) => `<button type="button" data-car="${t.id}" class="${t.model ? 'classic' : ''}" style="--c:${hex(t.accent)}" title="${t.name} · №${t.num} ${t.driver}"><i></i>${t.label || t.name} <b>${t.num}</b></button>`).join('');
   }
   function setCopy(t) {
     const q = (sel) => hero?.querySelector(sel);
+    const def = MODELS[t.model || 'car'];
     if (q('.hero-copy h1.glitch')) q('.hero-copy h1.glitch').textContent = t.name;
     if (q('.hero-copy .h1-sub')) q('.hero-copy .h1-sub').textContent = `№${t.num} · ${t.short}`;
-    if (q('.hero-copy .lead')) q('.hero-copy .lead').textContent = `${t.driver}. Ливрея ${t.colours}. Разберите болид на узлы — монокок, Halo, антикрылья, колёса — или включите рентген.`;
-    if (q('.car-spec b')) q('.car-spec b').textContent = t.num;
+    if (q('.hero-copy .lead')) q('.hero-copy .lead').textContent = t.lead || `${t.driver}. Ливрея ${t.colours}. Разберите болид на узлы — монокок, Halo, антикрылья, колёса — или включите рентген.`;
+    hero?.querySelectorAll('.car-spec span').forEach((el, i) => {
+      const [b, small] = i === 0 ? [t.num, 'номер'] : def.spec[i] || [];
+      if (b != null) el.innerHTML = `<b>${b}</b>${small}`;
+    });
     hero?.style.setProperty('--team', hex(t.accent));
     pick?.querySelectorAll('button').forEach((b) => {
       const on = b.dataset.car === t.id;
@@ -240,14 +293,18 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     pending++;
     hero?.classList.add('car-loading');
     try {
-      const [{ map, mr }] = await Promise.all([loadLivery(id), modelReady]);
-      if (current !== id || !bodyMat) return;
-      bodyMat.map = map;
-      bodyMat.metalnessMap = mr;
-      bodyMat.roughnessMap = mr;
-      bodyMat.needsUpdate = true;
+      const key = t.model || 'car';
+      const [entry, livery] = await Promise.all([loadModel(key), MODELS[key].livery ? loadLivery(id) : null]);
+      if (current !== id) return;
+      if (livery) {
+        entry.mat.map = livery.map;
+        entry.mat.metalnessMap = livery.mr;
+        entry.mat.roughnessMap = livery.mr;
+        entry.mat.needsUpdate = true;
+      }
+      show(entry);
     } catch (err) {
-      console.warn('livery failed to load', err);
+      console.warn('car failed to load', err);
     } finally {
       if (--pending === 0) hero?.classList.remove('car-loading');
     }

@@ -130,6 +130,7 @@ select {
 .car-pick button b { color: var(--c); font-family: Orbitron, sans-serif; }
 .car-pick button:hover { color: #fff; border-color: var(--c); }
 .car-pick button.on { color: #fff; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
+.car-pick button.classic { border-style: dashed; }
 @media (max-width: 700px) {
   .car-pick { flex-wrap: nowrap; overflow-x: auto; max-width: none; margin-right: -16px; padding-right: 16px; scrollbar-width: none; scroll-snap-type: x proximity; }
   .car-pick::-webkit-scrollbar { display: none; }
