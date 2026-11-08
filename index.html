@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>F1 Pulse — трекинг Формулы 1</title>
+  <meta name="description" content="Лайв-трекинг Формулы 1: 3D-трек, круги, пилоты, конструкторы, результаты, история и новости." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    { "imports": { "three": "./js/vendor/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home"><span class="brand-mark">F1</span><span class="brand-text">PULSE</span></a>
+    <nav class="nav" id="nav">
+      <a href="#home" data-route="home">Главная</a>
+      <a href="#live" data-route="live"><span class="dot"></span>Лайв</a>
+      <a href="#drivers" data-route="drivers">Пилоты</a>
+      <a href="#constructors" data-route="constructors">Конструкторы</a>
+      <a href="#races" data-route="races">Гонки</a>
+      <a href="#history" data-route="history">История</a>
+      <a href="#news" data-route="news">Новости</a>
+    </nav>
+    <button class="burger" id="burger" aria-label="Меню">☰</button>
+  </header>
+
+  <main>
+    <!-- HOME -->
+    <section class="view" id="view-home">
+      <div class="hero">
+        <canvas id="car-canvas"></canvas>
+        <div class="hero-labels" id="car-labels"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">Анатомия скорости</p>
+          <h1>Формула 1<br /><span>в реальном времени</span></h1>
+          <p class="lead">3D-трекинг гонок, живые круги, интервалы, оценки пилотов, таблицы чемпионата и архив легендарных Гран-при.</p>
+          <div class="hero-actions">
+            <a class="btn primary" href="#live">Открыть лайв-дашборд</a>
+            <button class="btn ghost" id="explode-btn">Разобрать болид</button>
+          </div>
+        </div>
+        <div class="hero-hint">Потяните, чтобы вращать · колесо — масштаб</div>
+      </div>
+
+      <div class="container">
+        <div class="next-race card" id="next-race">
+          <div class="skeleton">Загрузка календаря…</div>
+        </div>
+        <div class="grid-3" id="home-tops"></div>
+      </div>
+    </section>
+
+    <!-- LIVE -->
+    <section class="view" id="view-live" hidden>
+      <div class="container wide">
+        <div class="live-head">
+          <div>
+            <p class="eyebrow" id="live-status">Подключение…</p>
+            <h2 id="live-title">Лайв-дашборд</h2>
+            <p class="muted" id="live-sub"></p>
+          </div>
+          <div class="live-controls">
+            <select id="session-select" aria-label="Сессия"></select>
+            <button class="btn small" id="replay-toggle">▶ Повтор</button>
+            <select id="replay-speed" aria-label="Скорость">
+              <option value="1">1×</option><option value="4" selected>4×</option><option value="10">10×</option><option value="30">30×</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="live-grid">
+          <div class="card track-card">
+            <div class="card-head"><h3>3D-трасса</h3><span class="muted" id="track-clock">—</span></div>
+            <div class="track-wrap"><canvas id="track-canvas"></canvas><div id="track-tags"></div></div>
+            <div class="weather" id="weather"></div>
+          </div>
+
+          <div class="card tower-card">
+            <div class="card-head"><h3>Тайминг</h3><span class="lap-badge" id="lap-badge">Круг —</span></div>
+            <table class="tower" id="tower">
+              <thead><tr><th>#</th><th>Пилот</th><th>Интервал</th><th>Лидер</th><th>Последний</th><th>Шины</th><th>Оценка</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="card lap-card">
+            <div class="card-head"><h3>Круги</h3><select id="lap-driver" aria-label="Пилот"></select></div>
+            <canvas id="lap-chart" height="220"></canvas>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Оценка пилотов</h3><span class="muted">алгоритм F1 Pulse</span></div>
+            <div id="ratings"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Дирекция гонки</h3></div>
+            <ul class="feed" id="race-control"></ul>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Последние новости</h3><a href="#news" class="muted">все →</a></div>
+            <ul class="feed news-mini" id="live-news"></ul>
+          </div>
+
+          <div class="card links-card">
+            <div class="card-head"><h3>Ссылки на гонку</h3></div>
+            <div class="links" id="race-links"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DRIVERS -->
+    <section class="view" id="view-drivers" hidden>
+      <div class="container">
+        <p class="eyebrow">Чемпионат пилотов</p>
+        <h2>Пилоты <span class="muted" id="drivers-season"></span></h2>
+        <div class="driver-grid" id="driver-grid"></div>
+      </div>
+    </section>
+
+    <!-- CONSTRUCTORS -->
+    <section class="view" id="view-constructors" hidden>
+      <div class="container">
+        <p class="eyebrow">Кубок конструкторов</p>
+        <h2>Конструкторы <span class="muted" id="cons-season"></span></h2>
+        <div id="cons-list"></div>
+      </div>
+    </section>
+
+    <!-- RACES -->
+    <section class="view" id="view-races" hidden>
+      <div class="container">
+        <div class="row-between">
+          <div><p class="eyebrow">Календарь и результаты</p><h2>Гонки</h2></div>
+          <select id="season-select" aria-label="Сезон"></select>
+        </div>
+        <div id="race-list"></div>
+      </div>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="view" id="view-history" hidden>
+      <div class="container">
+        <p class="eyebrow">Архив</p>
+        <h2>Исторические гонки</h2>
+        <p class="muted">Легендарные Гран-при — видеообзоры, полные результаты и статьи.</p>
+        <div class="history-grid" id="history-grid"></div>
+      </div>
+    </section>
+
+    <!-- NEWS -->
+    <section class="view" id="view-news" hidden>
+      <div class="container">
+        <p class="eyebrow">Пресс-центр</p>
+        <h2>Новости</h2>
+        <div class="news-grid" id="news-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer-panel"><button class="close" id="drawer-close">✕</button><div id="drawer-body"></div></div>
+  </div>
+
+  <footer class="footer">
+    Данные: <a href="https://openf1.org" target="_blank" rel="noopener">OpenF1</a> ·
+    <a href="https://github.com/jolpica/jolpica-f1" target="_blank" rel="noopener">Jolpica (Ergast)</a> ·
+    новости — RSS. Неофициальный фан-проект, не связан с Formula 1.
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
