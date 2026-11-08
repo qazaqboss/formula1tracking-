@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611082341';
+import { createBloom, lowPower } from './fx.js?v=202611090002';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;
@@ -112,6 +112,8 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
     wheelFR: ['Передние шины · 18"', null, new THREE.Vector3(0, 0.55, 0)],
     wheelRL: ['', null],
     wheelRR: ['Задние шины · 18"', null, new THREE.Vector3(0, 0.6, 0)],
+    // uprights / brake ducts: move out with their wheel when exploded but never spin
+    hubFL: ['', null], hubFR: ['', null], hubRL: ['', null], hubRR: ['', null],
   };
 
   // ---------- selectable cars: same chassis, two liveries ----------

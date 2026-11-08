@@ -1,10 +1,10 @@
-import * as api from './api.js?v=202611082341';
-import { initCar } from './car3d.js?v=202611082341';
-import { initLive, pauseLive } from './live.js?v=202611082341';
-import { initBackground } from './bg.js?v=202611082341';
+import * as api from './api.js?v=202611090002';
+import { initCar } from './car3d.js?v=202611090002';
+import { initLive, pauseLive } from './live.js?v=202611090002';
+import { initBackground } from './bg.js?v=202611090002';
 import {
   FALLBACK_GRID, HISTORIC_RACES, teamColor, esc, safeUrl, ytSearch, f1tvSearch, fmtDate, raceDate, timeAgo, flagEmoji,
-} from './data.js?v=202611082341';
+} from './data.js?v=202611090002';
 
 const $ = (id) => document.getElementById(id);
 const ROUTES = ['live', 'home', 'drivers', 'constructors', 'races', 'history', 'news'];
