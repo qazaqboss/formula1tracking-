@@ -16,15 +16,15 @@
   <canvas id="bg-dots" aria-hidden="true"></canvas>
   <div class="scanlines" aria-hidden="true"></div>
   <header class="topbar">
-    <a class="brand" href="#home"><span class="brand-mark">F1</span><span class="brand-text">PULSE</span></a>
+    <a class="brand" href="#live"><span class="brand-mark">F1</span><span class="brand-text">PULSE</span></a>
     <nav class="nav" id="nav">
-      <a href="#home" data-route="home">Главная</a>
-      <a href="#live" data-route="live"><span class="dot"></span>Лайв</a>
+      <a href="#live" data-route="live"><span class="dot"></span>Дашборд</a>
       <a href="#drivers" data-route="drivers">Пилоты</a>
       <a href="#constructors" data-route="constructors">Конструкторы</a>
       <a href="#races" data-route="races">Гонки</a>
       <a href="#history" data-route="history">История</a>
       <a href="#news" data-route="news">Новости</a>
+      <a href="#home" data-route="home">3D-болид</a>
     </nav>
     <button class="burger" id="burger" aria-label="Меню">☰</button>
   </header>
@@ -75,6 +75,8 @@
             </div>
           </div>
         </div>
+        <div class="weekend" id="weekend"></div>
+        <div class="kpis" id="kpis"></div>
         <div class="seek-row">
           <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Перемотка гонки" />
           <span id="seek-label" class="mono">0%</span>
@@ -99,6 +101,11 @@
           <div class="card lap-card">
             <div class="card-head"><h3>Круги</h3><select id="lap-driver" aria-label="Пилот"></select></div>
             <canvas id="lap-chart"></canvas>
+          </div>
+
+          <div class="card quali-card" id="quali-card" hidden>
+            <div class="card-head"><h3 id="quali-title">Итоги квалификации</h3><span class="muted">официально · Jolpica</span></div>
+            <div id="quali-body"></div>
           </div>
 
           <div class="card rate-card">

@@ -360,3 +360,48 @@ select {
 @media (max-width: 380px) {
   .tower th:last-child, .tower td.score { display: none; }
 }
+
+/* ---------- dashboard header: weekend strip + KPI tiles ---------- */
+:root { --flag-GREEN: var(--green); --flag-YELLOW: var(--yellow); --flag-RED: var(--red); --flag-SC: #ff9d2b; --flag-CHEQUERED: #fff; }
+.weekend { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; scrollbar-width: none; }
+.weekend::-webkit-scrollbar { display: none; }
+.wk {
+  flex: 1 0 auto; min-width: 92px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.4); border: 1px solid var(--line); color: var(--text); cursor: pointer; text-align: left;
+  font: 0.68rem var(--mono); clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+.wk b { font: 700 0.85rem var(--display); letter-spacing: 0.06em; }
+.wk span { color: var(--muted); }
+.wk.done b::after { content: " ✓"; color: var(--green); }
+.wk.live { border-color: var(--red); }
+.wk.live span { color: var(--red); animation: pulse 1.2s infinite; }
+.wk.next { opacity: 0.55; cursor: default; }
+.wk.cur { border-color: var(--cyan); background: rgba(0, 240, 255, 0.1); box-shadow: inset 0 -2px 0 var(--cyan), 0 0 16px rgba(0, 240, 255, 0.25); }
+.wk:not([disabled]):hover { border-color: var(--yellow); }
+
+.kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi {
+  --k: var(--cyan); position: relative; padding: 12px 14px 10px; min-width: 0; overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--k) 18%, transparent), transparent 60%), var(--card);
+  border: 1px solid color-mix(in srgb, var(--k) 45%, transparent);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+.kpi::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--k); box-shadow: 0 0 12px var(--k); }
+.kpi span { display: block; color: var(--muted); font: 600 0.62rem var(--mono); text-transform: uppercase; letter-spacing: 0.14em; }
+.kpi b { display: block; font: 800 1.6rem var(--display); color: var(--text); text-shadow: 0 0 14px color-mix(in srgb, var(--k) 70%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0; }
+.kpi b em { font-style: normal; font-size: 0.9rem; color: var(--muted); }
+.kpi small { display: block; color: var(--muted); font: 0.68rem var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi.prog { --k: var(--magenta); }
+.kpi.prog::before { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: var(--pct); background: linear-gradient(90deg, var(--magenta), var(--cyan)); box-shadow: 0 0 10px var(--magenta); transition: width 0.4s; }
+.kpi.skel { height: 78px; animation: pulse 1.2s infinite; }
+.live-grid > .quali-card { grid-column: span 12; overflow-x: auto; }
+.quali-card .tower td:nth-child(n+3) { font-size: 0.78rem; }
+
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 760px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .kpi { padding: 10px 10px 8px; }
+  .kpi b { font-size: 1.2rem; }
+  .kpi:last-child { grid-column: span 2; }
+  .wk { min-width: 78px; padding: 7px 9px; }
+}

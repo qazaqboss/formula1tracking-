@@ -7,12 +7,12 @@ import {
 } from './data.js';
 
 const $ = (id) => document.getElementById(id);
-const ROUTES = ['home', 'live', 'drivers', 'constructors', 'races', 'history', 'news'];
+const ROUTES = ['live', 'home', 'drivers', 'constructors', 'races', 'history', 'news'];
 const loaded = new Set();
 
 // ---------- router ----------
 function route() {
-  const r = ROUTES.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
+  const r = ROUTES.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'live';
   for (const id of ROUTES) $(`view-${id}`).hidden = id !== r;
   document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === r));
   $('nav').classList.remove('open');

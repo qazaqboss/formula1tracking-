@@ -1,5 +1,5 @@
 // Live / replay race dashboard powered by OpenF1, with an animated demo fallback
-import { openf1, news } from './api.js';
+import { openf1, news, schedule, jolpica } from './api.js';
 import { createTrack } from './track3d.js';
 import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js';
 
@@ -8,6 +8,7 @@ const BIG = { ttl: 10 * 60_000, persist: false, timeout: 30_000 };
 
 const S = {
   sessions: [],
+  all: [],
   meetings: new Map(),
   session: null,
   demo: false,
@@ -77,14 +78,24 @@ export async function initLive() {
     }
     meetings.forEach((m) => S.meetings.set(m.meeting_key, m));
     const now = Date.now();
+    S.all = sessions.slice().sort((a, b) => ms(a.date_start) - ms(b.date_start));
     S.sessions = sessions.filter((s) => ms(s.date_start) < now).sort((a, b) => ms(b.date_start) - ms(a.date_start));
     if (!S.sessions.length) throw new Error('no sessions');
     $('session-select').innerHTML = S.sessions
-      .map((s) => `<option value="${s.session_key}">${esc(meetingName(s))} — ${esc(s.session_name)}</option>`)
+      .map((s) => `<option value="${s.session_key}">${esc(meetingName(s))} — ${esc(sessionRu(s.session_name))}</option>`)
       .join('');
-    const pick = S.sessions.find(isLive) || S.sessions.find((s) => s.session_type === 'Race') || S.sessions[0];
-    $('session-select').value = pick.session_key;
-    await loadSession(pick.session_key);
+    // newest session first (today's qualifying beats last week's race); if OpenF1 has not
+    // published it yet, step back to the previous session that has data
+    const live = S.sessions.find(isLive);
+    const order = live ? [live] : S.sessions.slice(0, 4);
+    let ok = false;
+    for (const cand of order) {
+      $('session-select').value = cand.session_key;
+      ok = await loadSession(cand.session_key, { quiet: cand !== order[order.length - 1] });
+      if (ok) break;
+    }
+    if (!ok && !S.demo) startDemo();
+    setInterval(renderWeekend, 30_000);
   } catch (err) {
     console.warn('OpenF1 unavailable, starting demo', err);
     startDemo();
@@ -115,12 +126,15 @@ function resetView() {
   track.clearCars();
 }
 
-async function loadSession(key) {
+async function loadSession(key, { quiet = false } = {}) {
   resetView();
   S.demo = false;
   const s = S.sessions.find((x) => x.session_key === key);
   S.session = s;
-  $('live-title').textContent = `${meetingName(s)} — ${s.session_name}`;
+  $('live-title').textContent = `${meetingName(s)} — ${sessionRu(s.session_name)}`;
+  renderWeekend();
+  renderKpis(null);
+  $('quali-card').hidden = true;
   $('live-sub').textContent = `${s.circuit_short_name}, ${s.country_name} · ${new Date(s.date_start).toLocaleString('ru-RU')}`;
   setStatus('Загрузка телеметрии…', 'loading');
   renderLinks();
@@ -131,7 +145,7 @@ async function loadSession(key) {
   const names = ['drivers', 'laps', 'position', 'stints', 'race_control', 'weather', 'intervals'];
   const res = await Promise.allSettled(names.map((n) => openf1(n, p, n === 'drivers' ? { ttl: 60 * 60_000 } : opts)));
   const get = (n) => { const r = res[names.indexOf(n)]; return r.status === 'fulfilled' ? r.value : []; };
-  if (S.session !== s) return; // user switched meanwhile
+  if (S.session !== s) return true; // user switched meanwhile
 
   const drivers = get('drivers');
   if (!drivers.length || !get('laps').length) {
@@ -142,9 +156,11 @@ async function loadSession(key) {
       $('live-title').textContent = `${meetingName(s)} — ${s.session_name}`;
       setStatus('<span class="dot"></span> Сессия идёт · реалтайм OpenF1 закрыт, показываем демо', 'live');
       S.liveTimer = setInterval(() => loadSession(key), 60_000);
-      return;
+      return true;
     }
-    if (!drivers.length) { startDemo(); return; }
+    // not published yet (OpenF1 can lag after a session ends)
+    if (quiet) return false;
+    if (!drivers.length) { startDemo(); return false; }
   }
 
   ingest({
@@ -162,10 +178,92 @@ async function loadSession(key) {
     S.mode = 'replay';
     S.t = S.t0;
     S.playing = true;
-    setStatus('▶ Повтор гонки · перематывайте шкалой', 'replay');
+    if (!isRace()) { S.speed = Math.max(S.speed, 30); $('replay-speed').value = String(S.speed); }
+    setStatus(`▶ Повтор: ${esc(sessionRu(s.session_name))} · перематывайте шкалой`, 'replay');
   }
   updatePlayBtn();
   render();
+  if (/qualifying|sprint/i.test(s.session_name)) loadQualiResults(s);
+  return true;
+}
+
+const isRace = () => !S.session || S.session.session_type === 'Race' || S.demo;
+const RU = { 'Practice 1': 'Практика 1', 'Practice 2': 'Практика 2', 'Practice 3': 'Практика 3', Qualifying: 'Квалификация',
+  'Sprint Qualifying': 'Спринт-квалификация', 'Sprint Shootout': 'Спринт-квалификация', Sprint: 'Спринт', Race: 'Гонка' };
+const sessionRu = (n) => RU[n] || n;
+const SHORT = { 'Practice 1': 'FP1', 'Practice 2': 'FP2', 'Practice 3': 'FP3', Qualifying: 'КВАЛ', 'Sprint Qualifying': 'SQ', 'Sprint Shootout': 'SQ', Sprint: 'СПРИНТ', Race: 'ГОНКА' };
+
+// weekend strip: every session of the selected meeting with done / live / upcoming state
+function renderWeekend() {
+  const el = $('weekend');
+  if (!S.session || S.demo || !S.all.length) { el.innerHTML = ''; return; }
+  const now = Date.now();
+  const list = S.all.filter((x) => x.meeting_key === S.session.meeting_key);
+  el.innerHTML = list.map((x) => {
+    const st = isLive(x) && ms(x.date_start) < now ? 'live' : ms(x.date_start) > now ? 'next' : 'done';
+    const left = ms(x.date_start) - now;
+    const sub = st === 'live' ? '● LIVE' : st === 'next'
+      ? (left > 86400_000 ? `через ${Math.floor(left / 86400_000)} д` : `через ${Math.floor(left / 3600_000)} ч ${Math.floor((left % 3600_000) / 60_000)} м`)
+      : new Date(x.date_start).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    return `<button class="wk ${st} ${x.session_key === S.session.session_key ? 'cur' : ''}" data-k="${x.session_key}" ${st === 'next' ? 'disabled' : ''}>
+      <b>${esc(SHORT[x.session_name] || x.session_name)}</b><span>${esc(sub)}</span></button>`;
+  }).join('');
+  el.querySelectorAll('button.wk:not([disabled])').forEach((b) => b.addEventListener('click', () => {
+    $('session-select').value = b.dataset.k;
+    loadSession(+b.dataset.k);
+  }));
+}
+
+// KPI tiles at the top of the dashboard
+function renderKpis(st) {
+  const el = $('kpis');
+  if (!st) { el.innerHTML = '<div class="kpi skel"></div>'.repeat(5); return; }
+  const lead = st.rows[0];
+  let fl = null;
+  for (const r of st.rows) if (isFinite(r.pb) && (!fl || r.pb < fl.pb)) fl = r;
+  const rc = S.data.race_control.filter((r) => r._t <= S.t && (r.flag || r.category === 'SafetyCar'));
+  const lastFlag = rc[rc.length - 1];
+  let flag = 'GREEN', flagText = 'Зелёный флаг';
+  if (lastFlag) {
+    if (lastFlag.category === 'SafetyCar' && !/ENDING|IN THIS LAP|WITHDRAWN/.test(lastFlag.message)) { flag = 'SC'; flagText = /VIRTUAL/.test(lastFlag.message) ? 'VSC' : 'Safety Car'; }
+    else if (lastFlag.flag === 'RED') { flag = 'RED'; flagText = 'Красный флаг'; }
+    else if (lastFlag.flag === 'CHEQUERED') { flag = 'CHEQUERED'; flagText = 'Финиш'; }
+    else if (/YELLOW/.test(lastFlag.flag || '')) { flag = 'YELLOW'; flagText = 'Жёлтый флаг'; }
+  }
+  const total = Math.max(1, ...[...S.byDriver.laps.values()].map((a) => a.length));
+  const pct = isRace() ? Math.min(100, (st.lap / total) * 100) : Math.min(100, ((S.t - S.t0) / Math.max(1, S.t1 - S.t0)) * 100);
+  const w = lastBefore(S.data.weather, S.t);
+  const tile = (label, value, sub, style = '') => `<div class="kpi" style="${style}"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
+  el.innerHTML = [
+    lead ? tile(isRace() ? 'Лидер' : 'Быстрейший', esc(lead.d.name_acronym), esc(lead.d.team_name || lead.d.full_name || ''), `--k:#${esc(lead.d.team_colour || 'fff')}`) : tile('Лидер', '—', ''),
+    tile('Лучший круг', fl ? fmtLap(fl.pb) : '—', fl ? esc(fl.d.name_acronym) : 'ждём', '--k:var(--purple)'),
+    `<div class="kpi prog" style="--pct:${pct}%"><span>${isRace() ? 'Прогресс' : 'Сессия'}</span><b>${isRace() ? `${st.lap}<em>/${total}</em>` : `${Math.round(pct)}%`}</b><small>${isRace() ? 'кругов' : 'времени прошло'}</small></div>`,
+    tile('Трасса', esc(flagText), lastFlag ? fmtTime(lastFlag._t) : 'чистая', `--k:var(--flag-${flag})`),
+    tile('Асфальт', w ? `${w.track_temperature}°` : '—', w ? `воздух ${w.air_temperature}° · ${w.rainfall ? 'дождь' : 'сухо'}` : '', '--k:var(--yellow)'),
+  ].join('');
+}
+
+// official Q1/Q2/Q3 classification from Jolpica for qualifying sessions
+async function loadQualiResults(s) {
+  const card = $('quali-card');
+  try {
+    const races = await schedule(s.year);
+    const d = ms(s.date_start);
+    const race = races.find((r) => Math.abs(Date.parse(`${r.date}T12:00:00Z`) - d) < 4 * 86400_000);
+    if (!race) return;
+    const sprint = /sprint/i.test(s.session_name);
+    const data = await jolpica(`${s.year}/${race.round}/${sprint ? 'sprint' : 'qualifying'}.json`, { ttl: 5 * 60_000 });
+    const R = data.MRData.RaceTable.Races[0];
+    const rows = sprint ? R?.SprintResults : R?.QualifyingResults;
+    if (!rows?.length || S.session !== s) return;
+    $('quali-title').textContent = sprint ? 'Итоги спринта' : 'Итоги квалификации';
+    $('quali-body').innerHTML = `<table class="tower"><thead><tr><th>#</th><th>Пилот</th>${sprint ? '<th>Время</th><th>Очки</th>' : '<th>Q1</th><th>Q2</th><th>Q3</th>'}</tr></thead><tbody>
+      ${rows.map((r) => `<tr style="--tc:${teamColor(r.Constructor.constructorId)}"><td class="p">${esc(r.position)}</td>
+        <td class="drv"><span class="bar"></span>${esc(r.Driver.code || r.Driver.familyName)}</td>
+        ${sprint ? `<td>${esc(r.Time?.time || r.status)}</td><td>${esc(r.points)}</td>` : `<td>${esc(r.Q1 || '—')}</td><td>${esc(r.Q2 || '—')}</td><td class="${r.position === '1' ? 'fl' : ''}">${esc(r.Q3 || '—')}</td>`}</tr>`).join('')}
+      </tbody></table>`;
+    card.hidden = false;
+  } catch { /* official classification not published yet */ }
 }
 
 function ingest({ drivers, laps, position, intervals, stints, race_control, weather }) {
@@ -379,7 +477,11 @@ function stateAt(t) {
     const out = !carProgress(num, t) && started.length > 0;
     rows.push({ num, d, pos: pos?.position ?? 99, grid: gridPos(num), gap: iv?.gap_to_leader, interval: iv?.interval, last, pb, laps, lapNo, stint, out });
   }
-  rows.sort((a, b) => a.pos - b.pos);
+  if (isRace()) rows.sort((a, b) => a.pos - b.pos);
+  else {
+    rows.sort((a, b) => (isFinite(a.pb) ? a.pb : 1e9) - (isFinite(b.pb) ? b.pb : 1e9) || a.pos - b.pos);
+    rows.forEach((r, i) => { if (isFinite(r.pb)) r.pos = i + 1; });
+  }
   rows.forEach((r) => (r.rating = rate(r, bestLap)));
   return { rows, bestLap, lap: Math.max(0, ...rows.map((r) => r.lapNo)) };
 }
@@ -393,7 +495,7 @@ function rate(r, bestLap) {
   const mean = clean.reduce((s, x) => s + x, 0) / (clean.length || 1);
   const std = Math.sqrt(clean.reduce((s, x) => s + (x - mean) ** 2, 0) / (clean.length || 1));
   let score = 8.6 - (Math.min(r.pos, 20) - 1) * 0.22;
-  if (r.grid && r.pos !== 99) score += (r.grid - r.pos) * 0.18;
+  if (isRace() && r.grid && r.pos !== 99) score += (r.grid - r.pos) * 0.18;
   if (isFinite(bestLap) && isFinite(r.pb)) score -= Math.min(2, (r.pb - bestLap) * 1.2);
   score -= Math.min(1.5, std * 0.6);
   if (r.out) score -= 2;
@@ -404,13 +506,14 @@ function rate(r, bestLap) {
 function render(st = stateAt(S.t)) {
   if (!S.drivers.size) return;
   const total = Math.max(...[...S.byDriver.laps.values()].map((a) => a.length));
-  $('lap-badge').textContent = st.lap ? `Круг ${st.lap}/${total}` : 'Старт';
+  $('lap-badge').textContent = !isRace() ? sessionRu(S.session.session_name) : st.lap ? `Круг ${st.lap}/${total}` : 'Старт';
   $('track-clock').textContent = S.mode === 'live' ? `LIVE · ${fmtTime(Date.now())}` : fmtTime(S.t);
   const seek = $('seek');
   const pct = (S.t - S.t0) / Math.max(1, S.t1 - S.t0);
   if (document.activeElement !== seek) seek.value = String(Math.round(pct * 1000));
   seek.style.setProperty('--p', `${Math.min(100, pct * 100)}%`);
   $('seek-label').textContent = S.mode === 'live' ? 'LIVE' : `${Math.round(pct * 100)}%`;
+  renderKpis(st);
   renderTower(st);
   renderRatings(st);
   renderRaceControl();
@@ -420,6 +523,9 @@ function render(st = stateAt(S.t)) {
 
 function renderTower(st) {
   const tb = $('tower').querySelector('tbody');
+  const ths = $('tower').querySelectorAll('thead th');
+  ths[2].textContent = isRace() ? 'Интервал' : 'Лучший';
+  ths[3].textContent = isRace() ? 'Лидер' : 'Отрыв';
   const visible = st.rows.filter((r) => r.pos !== 99 || r.laps.length);
   const before = new Map();
   for (const [num, tr] of S.rows) before.set(num, tr.getBoundingClientRect().top);
@@ -433,16 +539,20 @@ function renderTower(st) {
     const lastCls = r.last && r.last.lap_duration === st.bestLap ? 'fl' : r.last && r.last.lap_duration === r.pb ? 'pb' : '';
     const comp = r.stint?.compound || '';
     const age = r.stint ? (r.stint.tyre_age_at_start || 0) + Math.max(0, r.lapNo - r.stint.lap_start) : '';
-    const delta = r.grid && r.pos !== 99 ? r.grid - r.pos : 0;
+    const delta = isRace() && r.grid && r.pos !== 99 ? r.grid - r.pos : 0;
     const ratingCls = r.rating == null ? '' : r.rating > 7.5 ? 'hi' : r.rating > 5 ? 'mid' : 'lo';
-    const drs = i > 0 && typeof r.interval === 'number' && r.interval < 1;
+    const race = isRace();
+    const drs = race && i > 0 && typeof r.interval === 'number' && r.interval < 1;
+    const best = visible[0] && isFinite(visible[0].pb) ? visible[0].pb : null;
+    const c3 = race ? (r.out ? 'OUT' : i === 0 ? 'ЛИДЕР' : fmtGap(r.interval)) : (isFinite(r.pb) ? fmtLap(r.pb) : '—');
+    const c4 = race ? (i === 0 ? '—' : fmtGap(r.gap)) : (isFinite(r.pb) && best && i ? `+${(r.pb - best).toFixed(3)}` : '—');
     tr.className = `${r.num === S.selDriver ? 'sel' : ''} ${r.out ? 'out' : ''}`;
     tr.style.setProperty('--tc', `#${r.d.team_colour || '888'}`);
     const html = `
       <td class="p">${r.pos === 99 ? '—' : r.pos}</td>
       <td class="drv"><span class="bar"></span>${esc(r.d.name_acronym)}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '▲' : '▼'}${Math.abs(delta)}</small>` : ''}</td>
-      <td class="${drs ? 'drs' : ''}">${r.out ? 'OUT' : i === 0 ? 'ЛИДЕР' : fmtGap(r.interval)}</td>
-      <td class="c-gap">${i === 0 ? '—' : fmtGap(r.gap)}</td>
+      <td class="${drs ? 'drs' : ''} ${!race && r.pb === st.bestLap ? 'fl' : ''}">${c3}</td>
+      <td class="c-gap">${c4}</td>
       <td class="${lastCls}">${fmtLap(r.last?.lap_duration)}</td>
       <td class="c-tyre">${comp ? `<span class="tyre ${esc(comp)}" title="${esc(comp)}">${esc(comp[0])}</span><small>${age}</small>` : '—'}</td>
       <td class="score ${ratingCls}">${r.rating == null ? '—' : r.rating.toFixed(1)}</td>`;
