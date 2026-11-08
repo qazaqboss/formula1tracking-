@@ -1,7 +1,7 @@
 // 3D circuit map: track outline from telemetry, neon car markers with light trails, radar sweep
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
-import { createBloom, lowPower } from './fx.js?v=202611082319';
+import { createBloom, lowPower } from './fx.js?v=202611082332';
 
 const TRAIL = lowPower ? 14 : 26;
 

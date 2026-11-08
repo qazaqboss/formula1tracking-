@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611082319';
+import { createBloom, lowPower } from './fx.js?v=202611082332';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;

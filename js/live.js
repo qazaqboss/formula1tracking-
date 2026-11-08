@@ -1,7 +1,7 @@
 // Live / replay race dashboard powered by OpenF1, with an animated demo fallback
-import { openf1, news, schedule, jolpica } from './api.js?v=202611082319';
-import { createTrack } from './track3d.js?v=202611082319';
-import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js?v=202611082319';
+import { openf1, news, schedule, jolpica } from './api.js?v=202611082332';
+import { createTrack } from './track3d.js?v=202611082332';
+import { esc, safeUrl, fmtLap, fmtGap, fmtTime, ytSearch, f1tvSearch, timeAgo, FALLBACK_GRID, teamColor } from './data.js?v=202611082332';
 
 const $ = (id) => document.getElementById(id);
 const BIG = { ttl: 10 * 60_000, persist: false, timeout: 30_000 };
@@ -26,6 +26,10 @@ const S = {
   selDriver: null,
   rows: new Map(), // driver -> <tr>
   lastRc: '',
+  f1: false, // true while the dashboard is fed by the real-time F1 relay (/api/live)
+  totalLaps: null,
+  f1Out: new Set(),
+  f1Track: null,
 };
 let track;
 let inited = false;
@@ -68,6 +72,10 @@ export async function initLive() {
   loadNewsMini();
   initMobileUi();
   requestAnimationFrame(tick);
+
+  // a session is running right now: OpenF1 is locked, read the official feed through our relay
+  const f1 = await fetchF1Live().catch(() => null);
+  if (f1?.live) { startF1Live(f1); return; }
 
   try {
     const year = new Date().getUTCFullYear();
@@ -124,6 +132,9 @@ function resetView() {
   S.selDriver = null;
   S.rows.clear();
   S.lastRc = '';
+  S.f1 = false;
+  S.totalLaps = null;
+  S.f1Track = null;
   $('tower').querySelector('tbody').innerHTML = '';
   track.clearCars();
 }
@@ -152,7 +163,9 @@ async function loadSession(key, { quiet = false } = {}) {
   const drivers = get('drivers');
   if (!drivers.length || !get('laps').length) {
     if (live) {
-      // real-time feed is subscription-only on OpenF1: show the demo and retry every minute
+      // OpenF1 is locked during a session: switch to the official feed via our relay
+      const f1 = await fetchF1Live().catch(() => null);
+      if (f1?.live) { startF1Live(f1); return true; }
       startDemo(true);
       S.session = s;
       $('live-title').textContent = `${meetingName(s)} — ${s.session_name}`;
@@ -226,13 +239,14 @@ function renderKpis(st) {
   const rc = S.data.race_control.filter((r) => r._t <= S.t && (r.flag || r.category === 'SafetyCar'));
   const lastFlag = rc[rc.length - 1];
   let flag = 'GREEN', flagText = 'Зелёный флаг';
-  if (lastFlag) {
+  if (S.f1Track) [flag, flagText] = S.f1Track;
+  else if (lastFlag) {
     if (lastFlag.category === 'SafetyCar' && !/ENDING|IN THIS LAP|WITHDRAWN/.test(lastFlag.message)) { flag = 'SC'; flagText = /VIRTUAL/.test(lastFlag.message) ? 'VSC' : 'Safety Car'; }
     else if (lastFlag.flag === 'RED') { flag = 'RED'; flagText = 'Красный флаг'; }
     else if (lastFlag.flag === 'CHEQUERED') { flag = 'CHEQUERED'; flagText = 'Финиш'; }
     else if (/YELLOW/.test(lastFlag.flag || '')) { flag = 'YELLOW'; flagText = 'Жёлтый флаг'; }
   }
-  const total = Math.max(1, ...[...S.byDriver.laps.values()].map((a) => a.length));
+  const total = S.totalLaps || Math.max(1, ...[...S.byDriver.laps.values()].map((a) => a.length));
   const pct = isRace() ? Math.min(100, (st.lap / total) * 100) : Math.min(100, ((S.t - S.t0) / Math.max(1, S.t1 - S.t0)) * 100);
   const w = lastBefore(S.data.weather, S.t);
   const tile = (label, value, sub, style = '') => `<div class="kpi" style="${style}"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
@@ -355,7 +369,7 @@ function carProgress(num, t) {
   }
   return { lap: cur.lap_number, frac: into / dur };
 }
-function gridPos(num) { return (S.byDriver.position.get(num) || [])[0]?.position; }
+function gridPos(num) { return S.f1 ? undefined : (S.byDriver.position.get(num) || [])[0]?.position; }
 
 function placeCars(st) {
   if (!track.hasOutline()) return;
@@ -476,7 +490,7 @@ function stateAt(t) {
     const lapNo = started.length ? started[started.length - 1].lap_number : 0;
     const L = Math.max(lapNo, 1);
     const stint = S.data.stints.find((x) => x.driver_number === num && x.lap_start <= L && (x.lap_end ?? 999) >= L);
-    const out = !carProgress(num, t) && started.length > 0;
+    const out = S.f1 ? S.f1Out.has(num) : !carProgress(num, t) && started.length > 0;
     rows.push({ num, d, pos: pos?.position ?? 99, grid: gridPos(num), gap: iv?.gap_to_leader, interval: iv?.interval, last, pb, laps, lapNo, stint, out });
   }
   if (isRace()) rows.sort((a, b) => a.pos - b.pos);
@@ -507,7 +521,7 @@ function rate(r, bestLap) {
 // ---------- rendering ----------
 function render(st = stateAt(S.t)) {
   if (!S.drivers.size) return;
-  const total = Math.max(...[...S.byDriver.laps.values()].map((a) => a.length));
+  const total = S.totalLaps || Math.max(...[...S.byDriver.laps.values()].map((a) => a.length));
   $('lap-badge').textContent = !isRace() ? sessionRu(S.session.session_name) : st.lap ? `Круг ${st.lap}/${total}` : 'Старт';
   $('track-clock').textContent = S.mode === 'live' ? `LIVE · ${fmtTime(Date.now())}` : fmtTime(S.t);
   const seek = $('seek');
@@ -804,6 +818,150 @@ async function loadNewsMini() {
     ul.innerHTML = '<li class="muted">Новости недоступны</li>';
   }
   setTimeout(loadNewsMini, 5 * 60_000);
+}
+
+// ---------- real-time F1 feed (via /api/live) ----------
+// The relay returns the official live-timing state; it is converted into the same OpenF1-shaped
+// arrays the dashboard already renders (positions, intervals, laps, stints, race control, weather).
+const F1 = { hist: new Map(), tc: new Map(), pitOut: new Map(), lastPos: new Map(), lastGap: new Map() };
+async function fetchF1Live() {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 15_000);
+  try {
+    const r = await fetch('/api/live', { cache: 'no-store', signal: ctl.signal });
+    if (!r.ok) throw new Error(`relay ${r.status}`);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+
+const TRACK = { 1: ['GREEN', 'Зелёный флаг'], 2: ['YELLOW', 'Жёлтый флаг'], 4: ['SC', 'Safety Car'], 5: ['RED', 'Красный флаг'], 6: ['SC', 'VSC'], 7: ['SC', 'VSC заканчивается'] };
+
+function startF1Live(f) {
+  resetView();
+  S.demo = false;
+  S.f1 = true;
+  for (const m of Object.values(F1)) m.clear();
+  const s = f.session;
+  S.meetings.set('f1', { meeting_name: s.meeting });
+  S.session = {
+    session_key: `f1-${s.key}`, session_name: s.name, session_type: s.type, year: s.year, meeting_key: 'f1',
+    country_name: s.country, circuit_short_name: s.circuit, date_start: s.start, date_end: s.end,
+  };
+  $('session-select').innerHTML = `<option>${esc(s.meeting)} — ${esc(sessionRu(s.name))} · LIVE</option>`;
+  $('live-title').textContent = `${s.meeting} — ${sessionRu(s.name)}`;
+  $('live-sub').textContent = `${s.circuit}, ${s.country} · прямой эфир · официальный тайминг F1`;
+  $('quali-card').hidden = true;
+  renderWeekend();
+  renderLinks();
+  S.drivers = new Map();
+  S.data = { position: [], intervals: [], laps: [], stints: [], race_control: [], weather: [] };
+  applyF1(f, true);
+  loadCircuit(s.circuitKey, s.year);
+  S.mode = 'live';
+  S.t = Date.now();
+  updatePlayBtn();
+  render();
+  S.liveTimer = setInterval(pollF1, 5_000);
+}
+
+async function pollF1() {
+  if (document.hidden) return;
+  try {
+    const f = await fetchF1Live();
+    if (!S.f1 || !f.drivers) return;
+    if (`f1-${f.session?.key}` !== S.session.session_key) { if (f.live) startF1Live(f); return; }
+    applyF1(f);
+    if (!f.live) {
+      // session over: keep the final classification on screen, stop polling
+      stopLive();
+      setStatus('🏁 Сессия завершена · итоговая классификация (официальный тайминг)', 'replay');
+    }
+  } catch { /* transient relay error: keep the last state */ }
+}
+
+// circuit outline (public MultiViewer API), else the generic fallback shape
+async function loadCircuit(key, year) {
+  try {
+    const r = await fetch(`https://api.multiviewer.app/api/v1/circuits/${encodeURIComponent(key)}/${encodeURIComponent(year)}`);
+    const c = await r.json();
+    const pts = (c.x || []).map((x, i) => ({ x, y: c.y[i] }));
+    if (pts.length > 20 && track.setOutline(pts)) return;
+  } catch { /* no outline available */ }
+  track.setOutlineFallback();
+}
+
+function applyF1(f, first = false) {
+  const now = Date.now();
+  const iso = (t) => new Date(t).toISOString();
+  const stamp = first ? now - 60_000 : now;
+  S.totalLaps = f.totalLaps || null;
+  S.f1Out = new Set(f.drivers.filter((d) => d.out).map((d) => d.num));
+  S.f1Track = f.status === 'Finished' || f.status === 'Finalised' ? ['CHEQUERED', 'Финиш'] : TRACK[f.track?.status] || null;
+
+  const drivers = f.drivers.map((d) => ({
+    driver_number: d.num, name_acronym: d.tla, full_name: d.name, team_name: d.team, team_colour: d.colour, headshot_url: d.headshot,
+  }));
+  const changed = drivers.length !== S.drivers.size || drivers.some((d) => !S.drivers.has(d.driver_number));
+  drivers.forEach((d) => S.drivers.set(d.driver_number, d));
+  if (changed) {
+    $('lap-driver').innerHTML = drivers
+      .map((d) => `<option value="${d.driver_number}">${esc(d.name_acronym)} — ${esc(d.full_name)}</option>`).join('');
+    if (S.selDriver) $('lap-driver').value = S.selDriver;
+  }
+
+  const laps = [], stints = [];
+  for (const d of f.drivers) {
+    if (F1.lastPos.get(d.num) !== d.pos) {
+      F1.lastPos.set(d.num, d.pos);
+      S.data.position.push({ driver_number: d.num, position: d.pos, date: iso(stamp), _t: stamp });
+    }
+    const gk = `${d.gap}|${d.interval}`;
+    if (F1.lastGap.get(d.num) !== gk) {
+      F1.lastGap.set(d.num, gk);
+      S.data.intervals.push({ driver_number: d.num, gap_to_leader: d.gap, interval: d.interval, date: iso(stamp), _t: stamp });
+    }
+    // lap history: every lap time seen while the page is open, plus the personal best
+    const hist = F1.hist.get(d.num) || new Map();
+    F1.hist.set(d.num, hist);
+    if (d.laps && d.last) hist.set(d.laps, d.last);
+    if (d.bestLap && d.best && !hist.has(d.bestLap)) hist.set(d.bestLap, d.best);
+    const pits = F1.pitOut.get(d.num) || new Set();
+    F1.pitOut.set(d.num, pits);
+    if (d.pitOut) pits.add(d.laps + 1);
+    const known = [...hist.values()].sort((a, b) => a - b);
+    const med = known[Math.floor(known.length / 2)] || d.last || 90;
+    // when did the current lap start: smoothed estimate from completed sectors
+    const est = now - Math.min(d.into || 0, d.last || med) * 1000;
+    const prev = F1.tc.get(d.num);
+    const tc = !prev || prev.lap !== d.laps ? est : prev.t * 0.7 + est * 0.3;
+    F1.tc.set(d.num, { lap: d.laps, t: tc });
+    let start = tc;
+    if (!d.out && (d.laps > 0 || !d.inPit)) laps.push({ driver_number: d.num, lap_number: d.laps + 1, lap_duration: null, is_pit_out_lap: pits.has(d.laps + 1), date_start: iso(tc) });
+    for (let n = d.laps; n >= 1; n--) {
+      const dur = hist.get(n) || med;
+      start -= dur * 1000;
+      laps.push({ driver_number: d.num, lap_number: n, lap_duration: hist.get(n) || null, is_pit_out_lap: pits.has(n), date_start: iso(start) });
+    }
+    let lapStart = 1;
+    d.stints.forEach((x, i) => {
+      const len = Math.max(0, x.totalLaps - x.startLaps);
+      const last = i === d.stints.length - 1;
+      stints.push({ driver_number: d.num, compound: x.compound, tyre_age_at_start: x.startLaps, lap_start: lapStart, lap_end: last ? null : lapStart + len - 1 });
+      lapStart += len;
+    });
+  }
+  S.byDriver.position = groupBy(S.data.position, 'date');
+  S.byDriver.intervals = groupBy(S.data.intervals, 'date');
+  indexLaps(laps);
+  S.data.stints = stints;
+  S.data.race_control = f.raceControl.filter((r) => r.date).map((r) => ({ ...r, _t: ms(r.date) })).sort((a, b) => a._t - b._t);
+  if (f.weather) {
+    const w = f.weather;
+    S.data.weather = [{ date: iso(stamp - 5000), _t: stamp - 5000, air_temperature: w.air, track_temperature: w.track, humidity: w.humidity, wind_speed: w.wind, rainfall: w.rain ? 1 : 0 }];
+  }
+  computeWindow();
+  const lapTxt = f.lap && f.totalLaps ? ` · круг ${f.lap}/${f.totalLaps}` : f.remaining ? ` · осталось ${f.remaining}` : '';
+  if (f.live) setStatus(`<span class="dot"></span> LIVE${esc(lapTxt)} · официальный тайминг F1`, 'live');
 }
 
 // ---------- demo race (used when OpenF1 is unreachable) ----------
