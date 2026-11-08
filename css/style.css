@@ -516,3 +516,97 @@ select {
   .track-wrap { height: min(92vw, 420px); }
   .ticker { margin-bottom: 10px; }
 }
+
+/* ===================== RACE GAME ===================== */
+.nav a.nav-race { color: var(--yellow); }
+body.racing .footer { display: none; }
+#view-race { padding: 0; }
+.race-wrap { position: relative; height: calc(100svh - 58px); min-height: 480px; overflow: hidden; background: #05060b; user-select: none; -webkit-user-select: none; }
+#race-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#race-ui { position: absolute; inset: 0; pointer-events: none; font-family: var(--mono); color: var(--text); }
+#race-ui button, #race-ui select, #race-ui .rc-wheel, #race-ui .rc-panel { pointer-events: auto; }
+.rc-hud[hidden], .rc-menu[hidden] { display: none !important; }
+.rc-tl { position: absolute; left: 14px; top: 12px; display: grid; gap: 8px; }
+.rc-pos, .rc-lap { background: rgba(5, 6, 11, 0.72); border-left: 3px solid var(--magenta); padding: 6px 12px; backdrop-filter: blur(6px); letter-spacing: .12em; font-size: .75rem; }
+.rc-pos b { font: 900 2rem var(--display); color: #fff; text-shadow: 0 0 12px rgba(255, 43, 214, .7); }
+.rc-pos span, .rc-lap span { color: var(--muted); }
+.rc-lap b { font: 900 1.1rem var(--display); color: var(--cyan); }
+#rc-map { width: 150px; height: 150px; background: rgba(5, 6, 11, 0.55); border: 1px solid var(--line); }
+.rc-tr { position: absolute; right: 14px; top: 12px; display: grid; gap: 4px; min-width: 190px; }
+.rc-tr > div:not(.rc-btns) { display: flex; justify-content: space-between; gap: 14px; background: rgba(5, 6, 11, 0.72); padding: 5px 12px; border-right: 3px solid var(--cyan); backdrop-filter: blur(6px); font-size: .7rem; letter-spacing: .1em; }
+.rc-tr span { color: var(--muted); }
+.rc-tr b { font-size: .95rem; }
+#rc-best { color: var(--purple); }
+.rc-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+.rc-btns button { width: 38px; height: 34px; border: 1px solid var(--line2); background: rgba(5, 6, 11, .75); color: #fff; cursor: pointer; font-size: .9rem; }
+.rc-btns button:hover { border-color: var(--cyan); }
+.rc-dash { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: grid; grid-template-columns: auto auto; grid-template-areas: "leds leds" "speed gear" "bars bars"; align-items: end; column-gap: 18px; padding: 10px 22px 12px; background: linear-gradient(180deg, rgba(5, 6, 11, .35), rgba(5, 6, 11, .85)); border: 1px solid var(--line); clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%, 0 14px); }
+.rc-leds { grid-area: leds; display: flex; gap: 5px; justify-content: center; margin-bottom: 6px; }
+.rc-leds i { width: 11px; height: 11px; border-radius: 50%; background: #1b1d24; transition: background .05s; }
+.rc-leds i.g { background: #00ff66; box-shadow: 0 0 8px #00ff66; }
+.rc-leds i.r { background: #ff2020; box-shadow: 0 0 8px #ff2020; }
+.rc-leds i.b { background: #3d7bff; box-shadow: 0 0 10px #3d7bff; }
+.rc-speed { grid-area: speed; text-align: right; }
+.rc-speed b { display: block; font: 900 3.2rem/1 var(--display); color: #fff; text-shadow: 0 0 18px rgba(0, 240, 255, .55); min-width: 3ch; }
+.rc-speed span { font-size: .65rem; letter-spacing: .25em; color: var(--muted); }
+.rc-gear { grid-area: gear; font: 900 3.2rem/1 var(--display); color: var(--yellow); text-shadow: 0 0 16px rgba(252, 238, 10, .6); padding-bottom: 14px; }
+.rc-bars { grid-area: bars; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.rc-bars i { height: 5px; background: #1b1d24; position: relative; overflow: hidden; }
+.rc-bars i::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--v, 0)); }
+#rc-thr::after { background: var(--green); box-shadow: 0 0 8px var(--green); }
+#rc-brk::after { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.rc-wheel { position: absolute; left: 24px; bottom: 18px; width: 230px; touch-action: none; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .6)); }
+.rc-wheel svg { width: 100%; display: block; transition: transform .03s linear; }
+.rc-pedals { position: absolute; right: 18px; bottom: 18px; display: flex; gap: 12px; }
+.rc-pedals[hidden] { display: none; }
+.rc-pedals button { width: 92px; height: 120px; border: 2px solid var(--line2); background: rgba(5, 6, 11, .7); color: #fff; font: 700 .8rem var(--mono); letter-spacing: .12em; touch-action: none; clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+#rc-gas { height: 150px; border-color: rgba(57, 255, 159, .6); }
+#rc-brake { border-color: rgba(255, 42, 77, .6); }
+#rc-gas.on { background: rgba(57, 255, 159, .35); }
+#rc-brake.on { background: rgba(255, 42, 77, .35); }
+.rc-lights { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); display: flex; gap: 12px; padding: 12px 16px; background: rgba(5, 6, 11, .85); border: 1px solid #222; }
+.rc-lights[hidden] { display: none; }
+.rc-lights i { display: grid; gap: 8px; padding: 8px; background: #0b0c10; border-radius: 8px; }
+.rc-lights b { width: 34px; height: 34px; border-radius: 50%; background: #2a0606; }
+.rc-lights i.on b { background: #ff1414; box-shadow: 0 0 22px #ff1414, inset 0 0 8px #ffb0b0; }
+.rc-msg { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.9); font: 900 clamp(1.6rem, 5vw, 3.4rem) var(--display); letter-spacing: .08em; color: #fff; text-shadow: 0 0 22px rgba(0, 240, 255, .9); opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; }
+.rc-msg.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.rc-msg.go { color: var(--green); text-shadow: 0 0 26px var(--green); }
+.rc-msg.purple { color: var(--purple); text-shadow: 0 0 26px var(--purple); }
+.rc-help { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); font-size: .62rem; letter-spacing: .08em; color: rgba(230, 246, 255, .55); white-space: nowrap; }
+.rc-menu { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(5, 6, 11, .55), rgba(5, 6, 11, .88)); pointer-events: auto; overflow-y: auto; }
+.rc-panel { width: min(760px, 100%); background: var(--card); border: 1px solid var(--line2); padding: 22px 26px; backdrop-filter: blur(10px); clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); font-family: Inter, sans-serif; }
+.rc-panel h2 { margin: 4px 0 8px; font-size: clamp(1.8rem, 4vw, 2.6rem); }
+.rc-panel h4 { margin: 16px 0 8px; font: 700 .72rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--cyan); }
+.rc-cars { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.rc-cars button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 8px 10px; text-align: left; border: 1px solid rgba(255, 255, 255, .08); background: rgba(5, 6, 11, .6); color: var(--text); font: 600 .74rem var(--mono); letter-spacing: .04em; cursor: pointer; }
+.rc-cars button i { width: 9px; height: 9px; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.rc-cars button b { color: var(--c); font-family: var(--display); }
+.rc-cars button small { grid-column: 2 / 4; color: var(--muted); font-size: .66rem; }
+.rc-cars button.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--c) 35%, transparent); }
+.rc-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 16px; }
+.rc-opts label { display: grid; gap: 4px; font: 600 .66rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.rc-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.rc-actions .btn[hidden] { display: none; }
+.rc-load { min-height: 1.2em; margin: 10px 0 0; color: var(--cyan); }
+.rc-panel .tower tr.me td { background: rgba(0, 240, 255, .1); }
+@media (max-width: 760px) {
+  .race-wrap { height: calc(100svh - 58px); }
+  .rc-help { display: none; }
+  #rc-map { width: 104px; height: 104px; }
+  .rc-pos b { font-size: 1.5rem; }
+  .rc-tr { min-width: 0; }
+  .rc-tr > div:not(.rc-btns) { padding: 3px 8px; font-size: .58rem; }
+  .rc-tr b { font-size: .78rem; }
+  .rc-dash { bottom: auto; top: 10px; padding: 6px 12px 8px; }
+  .rc-dash .rc-bars { display: none; }
+  .rc-speed b, .rc-gear { font-size: 2rem; }
+  .rc-gear { padding-bottom: 6px; }
+  .rc-leds i { width: 7px; height: 7px; }
+  .rc-tl { top: 96px; }
+  .rc-wheel { width: 190px; left: 10px; bottom: 12px; }
+  .rc-pedals button { width: 78px; height: 104px; }
+  #rc-gas { height: 128px; }
+  .rc-lights b { width: 22px; height: 22px; }
+  .rc-panel { padding: 16px; }
+}

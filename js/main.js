@@ -1,13 +1,15 @@
-import * as api from './api.js?v=202611090337';
-import { initCar } from './car3d.js?v=202611090337';
-import { initLive, pauseLive } from './live.js?v=202611090337';
-import { initBackground } from './bg.js?v=202611090337';
+import * as api from './api.js?v=202611090446';
+import { initCar } from './car3d.js?v=202611090446';
+import { initLive, pauseLive } from './live.js?v=202611090446';
+import { initBackground } from './bg.js?v=202611090446';
 import {
   FALLBACK_GRID, HISTORIC_RACES, teamColor, esc, safeUrl, ytSearch, f1tvSearch, fmtDate, raceDate, timeAgo, flagEmoji,
-} from './data.js?v=202611090337';
+} from './data.js?v=202611090446';
 
 const $ = (id) => document.getElementById(id);
-const ROUTES = ['live', 'home', 'drivers', 'constructors', 'races', 'history', 'news'];
+const ROUTES = ['live', 'home', 'drivers', 'constructors', 'races', 'history', 'news', 'race'];
+let gameP = null; // the racing game module is loaded on first visit
+const loadGame = () => (gameP ??= import('./game.js?v=202611090446'));
 const loaded = new Set();
 
 // ---------- router ----------
@@ -18,6 +20,9 @@ function route() {
   $('nav').classList.remove('open');
   $('drawer').hidden = true;
   if (r === 'live') initLive(); else pauseLive();
+  document.body.classList.toggle('racing', r === 'race');
+  if (r === 'race') loadGame().then((g) => g.startGame()).catch((e) => console.warn('game failed to load', e));
+  else gameP?.then((g) => g.pauseGame());
   if (!loaded.has(r)) {
     loaded.add(r);
     ({ home: loadHome, drivers: loadDrivers, constructors: loadConstructors, races: loadRaces, history: loadHistory, news: loadNews }[r])?.();

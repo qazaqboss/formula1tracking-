@@ -23,7 +23,7 @@
   <meta name="twitter:image" content="https://formula1tracking.vercel.app/og.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/style.css?v=202611090337" />
+  <link rel="stylesheet" href="css/style.css?v=202611090446" />
   <script type="importmap">
     { "imports": { "three": "./js/vendor/three.module.min.js" } }
   </script>
@@ -41,6 +41,7 @@
       <a href="#history" data-route="history">История</a>
       <a href="#news" data-route="news">Новости</a>
       <a href="#home" data-route="home">3D-болид</a>
+      <a href="#race" data-route="race" class="nav-race">Гонка</a>
     </nav>
     <button class="burger" id="burger" aria-label="Меню">☰</button>
   </header>
@@ -75,6 +76,11 @@
         </div>
         <div class="grid-3" id="home-tops"></div>
       </div>
+    </section>
+
+    <!-- RACE GAME -->
+    <section class="view" id="view-race" hidden>
+      <div class="race-wrap"><canvas id="race-canvas"></canvas><div id="race-ui"></div></div>
     </section>
 
     <!-- LIVE -->
@@ -230,6 +236,6 @@
     новости — RSS. Неофициальный фан-проект, не связан с Formula 1.
   </footer>
 
-  <script type="module" src="js/main.js?v=202611090337"></script>
+  <script type="module" src="js/main.js?v=202611090446"></script>
 </body>
 </html>

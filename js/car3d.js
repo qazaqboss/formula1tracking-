@@ -6,8 +6,9 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
+import { TEAMS, hex } from './teams.js?v=202611090446';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611090337';
+import { createBloom, lowPower } from './fx.js?v=202611090446';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;
@@ -135,25 +136,7 @@ export function initCar(canvas, labelLayer, explodeBtn, xrayBtn) {
   // ---------- selectable cars ----------
   // 2026 grid (one driver per team; liveries are colour schemes only, no sponsor or team marks)
   // plus the 2019 Ferrari SF90 as a separate model
-  const TEAMS = [
-    { id: 'mclaren', name: 'McLaren', driver: 'Ландо Норрис', short: 'Норрис', num: '1', accent: 0xff8000, colours: 'папайя · антрацит' },
-    { id: 'ferrari', name: 'Ferrari', driver: 'Шарль Леклер', short: 'Леклер', num: '16', accent: 0xff1e1e, colours: 'красный · чёрный · белый' },
-    { id: 'redbull', name: 'Red Bull', driver: 'Макс Ферстаппен', short: 'Ферстаппен', num: '3', accent: 0x3d6ff0, colours: 'тёмно-синий · красный · жёлтый' },
-    { id: 'mercedes', name: 'Mercedes', driver: 'Андреа Кими Антонелли', short: 'Антонелли', num: '12', accent: TEAL, colours: 'чёрный · серебро · бирюза' },
-    { id: 'astonmartin', name: 'Aston Martin', driver: 'Фернандо Алонсо', short: 'Алонсо', num: '14', accent: 0xcedc00, colours: 'британский зелёный · лайм' },
-    { id: 'alpine', name: 'Alpine', driver: 'Пьер Гасли', short: 'Гасли', num: '10', accent: 0xff6eb4, colours: 'синий · розовый' },
-    { id: 'williams', name: 'Williams', driver: 'Александр Албон', short: 'Албон', num: '23', accent: 0x1f7dff, colours: 'тёмно-синий · голубой' },
-    { id: 'racingbulls', name: 'Racing Bulls', driver: 'Лиам Лоусон', short: 'Лоусон', num: '30', accent: 0x6c98ff, colours: 'белый · синий · красный' },
-    { id: 'haas', name: 'Haas', driver: 'Оливер Берман', short: 'Берман', num: '87', accent: 0xe0141e, colours: 'белый · чёрный · красный' },
-    { id: 'audi', name: 'Audi', driver: 'Габриэл Бортолето', short: 'Бортолето', num: '5', accent: 0xf50537, colours: 'титан · чёрный · красный' },
-    { id: 'cadillac', name: 'Cadillac', driver: 'Валттери Боттас', short: 'Боттас', num: '77', accent: 0xc8a55a, colours: 'чёрный · белый · золото' },
-    {
-      id: 'sf90', model: 'sf90', name: 'SF90', label: 'SF90 · 2019', driver: 'Себастьян Феттель', short: 'Феттель', num: '5', accent: 0xff2a1a,
-      lead: 'Болид Ferrari сезона 2019 — отдельная детализированная модель. Разберите его на узлы — кузов, кокпит, колёса — или включите рентген.',
-    },
-  ];
   const byId = new Map(TEAMS.map((t) => [t.id, t]));
-  const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
   const ver = new URL(import.meta.url).search;
   const asset = (path) => new URL(`../models/${path}${ver}`, import.meta.url).href;
   const loader = new GLTFLoader();
