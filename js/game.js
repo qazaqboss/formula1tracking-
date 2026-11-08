@@ -9,8 +9,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090446';
-import { createBloom, lowPower } from './fx.js?v=202611090446';
+import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090459';
+import { createBloom, lowPower } from './fx.js?v=202611090459';
 
 const VER = new URL(import.meta.url).search;
 const asset = (p) => new URL(`../models/${p}${VER}`, import.meta.url).href;
@@ -28,6 +28,7 @@ const CD = 0.86;              // drag N per (m/s)^2  -> ~345 km/h top speed
 const ROLL = 150;
 const BRAKE_BASE = 14000, BRAKE_DF = 3.0;
 const TIRE_B = 16, TIRE_C = 1.45;
+const REAR_GRIP = 1.08;        // slightly more rear grip: stable, mild understeer
 const GEAR_TOP = [82, 122, 158, 192, 226, 262, 300, 350]; // km/h per gear
 const HALF_W = 7;              // track half width
 const KERB_W = 1.4, RUNOFF = 5, WALL = 19;
@@ -843,7 +844,7 @@ function createGame() {
           <label>Круги<select id="rc-o-laps"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></label>
           <label>Соперники<select id="rc-o-ai"><option>0</option><option ${lowPower ? 'selected' : ''}>3</option><option ${lowPower ? '' : 'selected'}>5</option><option>7</option></select></label>
           <label>Сложность<select id="rc-o-diff"><option value="0.86">Лёгкая</option><option value="0.92" selected>Средняя</option><option value="0.975">Сложная</option></select></label>
-          <label>Помощь руля<select id="rc-o-assist"><option value="1" selected>Вкл</option><option value="0">Выкл</option></select></label>
+          <label>Стабилизация<select id="rc-o-assist"><option value="1" selected>Вкл (TC + ESC)</option><option value="0">Выкл — хардкор</option></select></label>
         </div>
         <div class="rc-actions"><button class="btn primary" id="rc-start">Старт</button><button class="btn neon" id="rc-resume" hidden>Продолжить</button></div>
         <p class="rc-load muted" id="rc-load"></p>
@@ -994,11 +995,13 @@ function createGame() {
     else {
       // keyboard: ramps in, self-centres faster at speed (the wheel "fights back")
       const back = 4 + Math.abs(player?.u || 0) * 0.06;
-      const rate = steerT === 0 || Math.sign(steerT) !== Math.sign(input.steer) ? back : 2.6;
+      const rate = steerT === 0 || Math.sign(steerT) !== Math.sign(input.steer) ? back : 2.1;
       input.steer += clamp(steerT - input.steer, -rate * dt, rate * dt);
       if (!kb && touchSteer == null) input.steer *= Math.exp(-dt * 3);
     }
-    input.throttle = thr; input.brake = brk;
+    // pedals ramp in (a key press is not a 0→100% stab), release quickly
+    input.throttle += clamp(thr - input.throttle, -8 * dt, (pad || touchGas ? 10 : 4) * dt);
+    input.brake += clamp(brk - input.brake, -10 * dt, 9 * dt);
   }
 
   // ---------- race state ----------
@@ -1150,13 +1153,13 @@ function createGame() {
     const surf = surfaceOf(c);
     const A = c.tpl.axleF, B = -c.tpl.axleR;
     // steering: speed-sensitive lock, optional assist (counter-steer help)
-    const maxSt = Math.max(0.075, 0.36 - Math.abs(u) * 0.0031);
+    const maxSt = Math.max(0.055, 0.32 - Math.abs(u) * 0.0031);
     let target = inp.steer * maxSt;
     if (assist && Math.abs(u) > 8) {
       const betaR = Math.atan2(w - B * r, Math.abs(u));
       target += clamp(betaR * 0.55, -0.12, 0.12);
     }
-    c.steer += clamp(target - c.steer, -2.6 * dt, 2.6 * dt);
+    c.steer += clamp(target - c.steer, -1.9 * dt, 1.9 * dt);
     const df = K_DF * u * u, fz = M * G + df, fzf = fz * 0.46, fzr = fz * 0.54;
     const ua = Math.max(Math.abs(u), 4);
     const dir = u >= 0 ? 1 : -1;
@@ -1174,9 +1177,11 @@ function createGame() {
     if (u < -0.5 && thr > 0) fxr += thr * 9000;
     if (u < -9) fxr = Math.max(fxr, 0);
     // friction circle per axle
-    const capF = surf.mu * fzf, capR = surf.mu * fzr;
-    fxf = clamp(fxf, -capF, capF); fxr = clamp(fxr, -capR, capR);
-    let fyf = tire(af, fzf, surf.mu), fyr = tire(ar, fzr, surf.mu);
+    const capF = surf.mu * fzf, capR = surf.mu * REAR_GRIP * fzr;
+    // traction control (assist): drive force never eats all of the rear grip
+    const tc = assist ? 0.72 : 0.98;
+    fxf = clamp(fxf, -capF, capF); fxr = clamp(fxr, -capR, capR * tc);
+    let fyf = tire(af, fzf, surf.mu), fyr = tire(ar, fzr, surf.mu * REAR_GRIP);
     const limF = Math.sqrt(Math.max(0, capF * capF - fxf * fxf)), limR = Math.sqrt(Math.max(0, capR * capR - fxr * fxr));
     fyf = clamp(fyf, -limF, limF); fyr = clamp(fyr, -limR, limR);
     const drag = CD * u * Math.abs(u) + ROLL * Math.sign(u) + surf.drag * u;
@@ -1186,6 +1191,17 @@ function createGame() {
     const dr = (A * (fyf * cs + fxf * sn) - B * fyr) / IZ;
     u += du * dt; w += dw * dt; r += dr * dt;
     if (Math.abs(u) < 3) { w *= 1 - dt * 5; r *= 1 - dt * 4; }
+    if (assist && Math.abs(u) > 2) {
+      // stability control: when the car starts to slide, pull the yaw rate towards what the
+      // steering asks for and bleed off the sideways slip (still lets the tail move a little)
+      const rKin = (u * Math.tan(c.steer)) / (A + B);
+      const beta = Math.atan2(w, Math.abs(u));
+      const k = clamp((Math.abs(beta) - 0.035) * 14, 0, 1) * 7 + (surf === SURF.grass || surf === SURF.gravel ? 0 : 1.2);
+      r += (rKin - r) * Math.min(1, k * dt);
+      w *= 1 - Math.min(1, k * 0.45 * dt);
+      const rMax = (surf.mu * (G + (K_DF * u * u) / M)) / Math.abs(u);
+      r = clamp(r, -rMax * 1.05, rMax * 1.05);
+    }
     if (!canDrive || (thr === 0 && Math.abs(u) < 0.25 && brk > 0 && !canDrive)) { u *= 1 - dt * 6; }
     c.u = u; c.w = w; c.r = r;
     c.vx = u * sinH + w * cosH; c.vz = u * cosH - w * sinH;

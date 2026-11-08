@@ -1,15 +1,15 @@
-import * as api from './api.js?v=202611090446';
-import { initCar } from './car3d.js?v=202611090446';
-import { initLive, pauseLive } from './live.js?v=202611090446';
-import { initBackground } from './bg.js?v=202611090446';
+import * as api from './api.js?v=202611090459';
+import { initCar } from './car3d.js?v=202611090459';
+import { initLive, pauseLive } from './live.js?v=202611090459';
+import { initBackground } from './bg.js?v=202611090459';
 import {
   FALLBACK_GRID, HISTORIC_RACES, teamColor, esc, safeUrl, ytSearch, f1tvSearch, fmtDate, raceDate, timeAgo, flagEmoji,
-} from './data.js?v=202611090446';
+} from './data.js?v=202611090459';
 
 const $ = (id) => document.getElementById(id);
 const ROUTES = ['live', 'home', 'drivers', 'constructors', 'races', 'history', 'news', 'race'];
 let gameP = null; // the racing game module is loaded on first visit
-const loadGame = () => (gameP ??= import('./game.js?v=202611090446'));
+const loadGame = () => (gameP ??= import('./game.js?v=202611090459'));
 const loaded = new Set();
 
 // ---------- router ----------
