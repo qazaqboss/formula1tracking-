@@ -1,6 +1,7 @@
 import * as api from './api.js';
 import { initCar } from './car3d.js';
 import { initLive, pauseLive } from './live.js';
+import { initBackground } from './bg.js';
 import {
   FALLBACK_GRID, HISTORIC_RACES, teamColor, esc, safeUrl, ytSearch, f1tvSearch, fmtDate, raceDate, timeAgo, flagEmoji,
 } from './data.js';
@@ -341,5 +342,6 @@ async function loadNews() {
 }
 
 // ---------- boot ----------
+initBackground($('bg-dots'));
 initCar($('car-canvas'), $('car-labels'), $('explode-btn'));
 route();

@@ -45,7 +45,42 @@ function qs(params) {
     .join('&');
 }
 
-export const openf1 = (path, params = {}, opts = {}) => getJSON(`${OPENF1}/${path}?${qs(params)}`, opts);
+// OpenF1's free tier is rate limited (a few requests per second), so requests are queued
+// and spaced out, and HTTP 429 responses are retried with backoff.
+const queue = [];
+let active = 0;
+let lastStart = 0;
+const GAP = 400;
+function pump() {
+  if (!queue.length || active >= 2) return;
+  const wait = lastStart + GAP - Date.now();
+  if (wait > 0) { setTimeout(pump, wait); return; }
+  const job = queue.shift();
+  active++;
+  lastStart = Date.now();
+  job().finally(() => { active--; pump(); });
+  pump();
+}
+function enqueue(fn) {
+  return new Promise((resolve, reject) => {
+    queue.push(() => fn().then(resolve, reject));
+    pump();
+  });
+}
+
+export async function openf1(path, params = {}, opts = {}) {
+  const url = `${OPENF1}/${path}?${qs(params)}`;
+  const hit = opts.ttl !== 0 ? cacheGet(url, opts.ttl ?? 60_000) : undefined;
+  if (hit !== undefined) return hit;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await enqueue(() => getJSON(url, opts));
+    } catch (e) {
+      if (!/^429 /.test(e.message) || attempt >= 3) throw e;
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** attempt));
+    }
+  }
+}
 
 export const jolpica = (path, opts = {}) => getJSON(`${JOLPICA}/${path}`, { ttl: 10 * 60_000, ...opts });
 

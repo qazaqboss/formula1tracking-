@@ -13,6 +13,8 @@
   </script>
 </head>
 <body>
+  <canvas id="bg-dots" aria-hidden="true"></canvas>
+  <div class="scanlines" aria-hidden="true"></div>
   <header class="topbar">
     <a class="brand" href="#home"><span class="brand-mark">F1</span><span class="brand-text">PULSE</span></a>
     <nav class="nav" id="nav">
@@ -34,8 +36,9 @@
         <canvas id="car-canvas"></canvas>
         <div class="hero-labels" id="car-labels"></div>
         <div class="hero-copy">
-          <p class="eyebrow">Анатомия скорости</p>
-          <h1>Формула 1<br /><span>в реальном времени</span></h1>
+          <p class="eyebrow">// Анатомия скорости_</p>
+          <h1 class="glitch" data-text="Формула 1">Формула 1</h1>
+          <h1 class="h1-sub">в реальном времени</h1>
           <p class="lead">3D-трекинг гонок, живые круги, интервалы, оценки пилотов, таблицы чемпионата и архив легендарных Гран-при.</p>
           <div class="hero-actions">
             <a class="btn primary" href="#live">Открыть лайв-дашборд</a>
@@ -57,19 +60,26 @@
     <section class="view" id="view-live" hidden>
       <div class="container wide">
         <div class="live-head">
-          <div>
-            <p class="eyebrow" id="live-status">Подключение…</p>
-            <h2 id="live-title">Лайв-дашборд</h2>
+          <div class="live-title-wrap">
+            <p class="eyebrow status loading" id="live-status">Подключение…</p>
+            <h2 class="glitch" id="live-title" data-text="">Лайв-дашборд</h2>
             <p class="muted" id="live-sub"></p>
           </div>
           <div class="live-controls">
             <select id="session-select" aria-label="Сессия"></select>
-            <button class="btn small" id="replay-toggle">▶ Повтор</button>
-            <select id="replay-speed" aria-label="Скорость">
-              <option value="1">1×</option><option value="4" selected>4×</option><option value="10">10×</option><option value="30">30×</option>
-            </select>
+            <div class="ctl-row">
+              <button class="btn small neon" id="replay-toggle">▶ Играть</button>
+              <select id="replay-speed" aria-label="Скорость">
+                <option value="1">1×</option><option value="5">5×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option>
+              </select>
+            </div>
           </div>
         </div>
+        <div class="seek-row">
+          <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Перемотка гонки" />
+          <span id="seek-label" class="mono">0%</span>
+        </div>
+        <div class="ticker"><span class="ticker-tag">RACE CONTROL</span><div class="ticker-viewport"><div class="ticker-track" id="ticker-track"></div></div></div>
 
         <div class="live-grid">
           <div class="card track-card">
@@ -81,27 +91,27 @@
           <div class="card tower-card">
             <div class="card-head"><h3>Тайминг</h3><span class="lap-badge" id="lap-badge">Круг —</span></div>
             <table class="tower" id="tower">
-              <thead><tr><th>#</th><th>Пилот</th><th>Интервал</th><th>Лидер</th><th>Последний</th><th>Шины</th><th>Оценка</th></tr></thead>
+              <thead><tr><th>#</th><th>Пилот</th><th>Интервал</th><th class="c-gap">Лидер</th><th>Круг</th><th class="c-tyre">Шины</th><th>Оценка</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
 
           <div class="card lap-card">
             <div class="card-head"><h3>Круги</h3><select id="lap-driver" aria-label="Пилот"></select></div>
-            <canvas id="lap-chart" height="220"></canvas>
+            <canvas id="lap-chart"></canvas>
           </div>
 
-          <div class="card">
+          <div class="card rate-card">
             <div class="card-head"><h3>Оценка пилотов</h3><span class="muted">алгоритм F1 Pulse</span></div>
             <div id="ratings"></div>
           </div>
 
-          <div class="card">
+          <div class="card rc-card">
             <div class="card-head"><h3>Дирекция гонки</h3></div>
             <ul class="feed" id="race-control"></ul>
           </div>
 
-          <div class="card">
+          <div class="card news-card-live">
             <div class="card-head"><h3>Последние новости</h3><a href="#news" class="muted">все →</a></div>
             <ul class="feed news-mini" id="live-news"></ul>
           </div>
