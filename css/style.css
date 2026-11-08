@@ -130,6 +130,9 @@ select {
 .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
 .hero-hint { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); color: var(--muted); font: 0.7rem var(--mono); letter-spacing: 0.15em; text-transform: uppercase; white-space: nowrap; }
 .hero-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hero.car-loading::after { content: 'Загрузка 3D-модели…'; position: absolute; right: 18%; top: 50%; color: var(--cyan); font: 0.75rem var(--mono); letter-spacing: 0.2em; text-transform: uppercase; animation: car-pulse 1.2s ease-in-out infinite; pointer-events: none; }
+@keyframes car-pulse { 50% { opacity: 0.3; } }
+@media (max-width: 700px) { .hero.car-loading::after { right: auto; left: 50%; top: 72%; transform: translateX(-50%); } }
 .part-label {
   position: absolute; left: 0; top: 0; font: 600 0.66rem var(--mono); color: var(--cyan); white-space: nowrap; padding: 3px 8px;
   border: 1px solid rgba(0, 240, 255, 0.6); background: rgba(5, 6, 11, 0.75); letter-spacing: 0.1em; text-transform: uppercase;
