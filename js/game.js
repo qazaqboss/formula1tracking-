@@ -9,8 +9,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090459';
-import { createBloom, lowPower } from './fx.js?v=202611090459';
+import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090443';
+import { createBloom, lowPower } from './fx.js?v=202611090443';
 
 const VER = new URL(import.meta.url).search;
 const asset = (p) => new URL(`../models/${p}${VER}`, import.meta.url).href;
@@ -829,6 +829,12 @@ function createGame() {
       <div class="rc-pedals" id="rc-pedals">
         <button id="rc-brake">ТОРМОЗ</button><button id="rc-gas">ГАЗ</button>
       </div>
+      <div class="rc-touch" id="rc-touch" hidden>
+        <div class="rc-zone" id="rc-zl"><span>◀</span></div>
+        <div class="rc-zone" id="rc-zr"><span>▶</span></div>
+        <button class="rc-ebrake" id="rc-ebrake">ТОРМОЗ</button>
+      </div>
+      <div class="rc-assist" id="rc-assist" hidden><i></i><span id="rc-assist-t">АВТОПИЛОТ СКОРОСТИ</span></div>
       <div class="rc-lights" id="rc-lights" hidden>${'<i><b></b><b></b></i>'.repeat(5)}</div>
       <div class="rc-msg" id="rc-msg"></div>
       <div class="rc-help">← → / A D — руль · ↑ W — газ · ↓ S — тормоз · C — камера · R — на трассу · мышь — обзор · Esc — пауза</div>
@@ -840,15 +846,23 @@ function createGame() {
         <p class="muted">Трасса «Неон Сити» · 3,4 км · трибуны, поребрики, гравий. Реалистичная управляемость: прижимная сила, срыв задней оси на газу, торможение с перегрузкой до 5g.</p>
         <h4>Болид</h4>
         <div class="rc-cars" id="rc-cars"></div>
+        <div class="rc-rotate">📱↻ Поверните телефон горизонтально — так удобнее</div>
+        <h4>Управление</h4>
+        <div class="rc-ctrl" id="rc-ctrl">
+          <button data-c="easy"><b>Простое</b><small>газ и тормоз сами, вы — ◀ ▶</small></button>
+          <button data-c="tilt"><b>Наклон</b><small>наклоняйте телефон как руль</small></button>
+          <button data-c="pro"><b>Про</b><small>руль, газ и тормоз вручную</small></button>
+        </div>
+        <p class="rc-howto" id="rc-howto"></p>
         <div class="rc-opts">
           <label>Круги<select id="rc-o-laps"><option>1</option><option selected>3</option><option>5</option><option>10</option></select></label>
           <label>Соперники<select id="rc-o-ai"><option>0</option><option ${lowPower ? 'selected' : ''}>3</option><option ${lowPower ? '' : 'selected'}>5</option><option>7</option></select></label>
-          <label>Сложность<select id="rc-o-diff"><option value="0.86">Лёгкая</option><option value="0.92" selected>Средняя</option><option value="0.975">Сложная</option></select></label>
-          <label>Стабилизация<select id="rc-o-assist"><option value="1" selected>Вкл (TC + ESC)</option><option value="0">Выкл — хардкор</option></select></label>
+          <label>Сложность<select id="rc-o-diff"><option value="0.86" ${touch ? 'selected' : ''}>Лёгкая</option><option value="0.92" ${touch ? '' : 'selected'}>Средняя</option><option value="0.975">Сложная</option></select></label>
+          <label class="rc-o-pro">Стабилизация<select id="rc-o-assist"><option value="1" selected>Вкл (TC + ESC)</option><option value="0">Выкл — хардкор</option></select></label>
         </div>
         <div class="rc-actions"><button class="btn primary" id="rc-start">Старт</button><button class="btn neon" id="rc-resume" hidden>Продолжить</button></div>
         <p class="rc-load muted" id="rc-load"></p>
-        <p class="muted small">Клавиатура, геймпад (руль — стик, газ/тормоз — курки) или касания: руль слева, педали справа. Мышью или пальцем по экрану можно вращать обзор.</p>
+        <p class="muted small rc-o-pro-note">Клавиатура и геймпад работают в любом режиме: ← → руль, ↑ газ, ↓ тормоз.</p>
       </div>
     </div>
     <div class="rc-menu" id="rc-results" hidden><div class="rc-panel"><p class="eyebrow">// ФИНИШ_</p><h2 id="rc-res-title">Результаты</h2><div id="rc-res-body"></div>
@@ -869,6 +883,59 @@ function createGame() {
     markChoice();
   });
   if (!touch) { $('rc-pedals').hidden = true; }
+
+  // ---------- control modes: easy (auto pedals + lane steering), tilt, pro ----------
+  let ctrl = touch ? 'easy' : 'pro';
+  try { ctrl = localStorage.getItem('f1p-race-ctrl') || ctrl; } catch { /* storage blocked */ }
+  const HOWTO = {
+    easy: touch
+      ? 'Держите палец на левой или правой половине экрана — болид смещается в эту сторону. Отпустили — сам держит траекторию. Газ и торможение перед поворотами автоматические, кнопка «Тормоз» — если хотите притормозить сильнее.'
+      : '← → смещают болид по ширине трассы, газ и тормоз автоматические. ↓ — притормозить сильнее.',
+    tilt: 'Наклоняйте телефон влево-вправо, как руль (держите горизонтально). Нулевое положение запоминается на старте. Газ и тормоз автоматические.',
+    pro: touch
+      ? 'Руль слева — крутите пальцем, педали справа. Полный контроль, как в симуляторе.'
+      : '← → / A D — руль · ↑ W — газ · ↓ S — тормоз · C — камера · R — на трассу · Esc — пауза.',
+  };
+  function setCtrl(c) {
+    ctrl = HOWTO[c] ? c : 'easy';
+    try { localStorage.setItem('f1p-race-ctrl', ctrl); } catch { /* storage blocked */ }
+    $('rc-ctrl').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.c === ctrl));
+    $('rc-howto').textContent = HOWTO[ctrl];
+    ui.classList.toggle('ctrl-pro', ctrl === 'pro');
+    const easyUi = ctrl !== 'pro';
+    if (touch) { $('rc-wheel').hidden = easyUi; $('rc-pedals').hidden = easyUi; }
+    $('rc-touch').hidden = !(touch && easyUi);
+    $('rc-touch').classList.toggle('tilt', ctrl === 'tilt');
+    $('rc-assist').hidden = !easyUi;
+  }
+  $('rc-ctrl').addEventListener('click', (e) => { const b = e.target.closest('button[data-c]'); if (b) setCtrl(b.dataset.c); });
+  setCtrl(ctrl);
+
+  // tilt steering from the device orientation (works in portrait and landscape)
+  const tilt = { raw: 0, zero: 0, ok: false, listening: false };
+  function tiltAngle(e) {
+    const a = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
+    if (a === 90) return e.beta;
+    if (a === -90 || a === 270) return -e.beta;
+    if (a === 180) return -e.gamma;
+    return e.gamma;
+  }
+  async function enableTilt() {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const r = await DeviceOrientationEvent.requestPermission(); // iOS asks the user once
+        if (r !== 'granted') throw new Error('denied');
+      }
+    } catch {
+      msg('Нет доступа к наклону — включаю «Простое»', 2200);
+      setCtrl('easy');
+      return;
+    }
+    if (!tilt.listening) {
+      tilt.listening = true;
+      addEventListener('deviceorientation', (e) => { if (e.beta == null) return; tilt.raw = tiltAngle(e) || 0; tilt.ok = true; });
+    }
+  }
   const fmt = (ms) => {
     if (ms == null || !isFinite(ms)) return '—';
     const m = Math.floor(ms / 60000), s = (ms % 60000) / 1000;
@@ -913,6 +980,7 @@ function createGame() {
   const keys = new Set();
   const input = { steer: 0, throttle: 0, brake: 0 };
   let touchSteer = null, touchGas = 0, touchBrake = 0;
+  let touchZones = () => 0;
   const active = () => !root.hidden;
   addEventListener('keydown', (e) => {
     if (!active()) return;
@@ -953,10 +1021,20 @@ function createGame() {
     };
     pedal($('rc-gas'), (v) => { touchGas = v; });
     pedal($('rc-brake'), (v) => { touchBrake = v; });
+    pedal($('rc-ebrake'), (v) => { touchBrake = v; });
+    // easy mode: hold the left / right half of the screen (multi-touch safe)
+    const zoneHeld = { l: new Set(), r: new Set() };
+    const zone = (el, side) => {
+      el.addEventListener('pointerdown', (e) => { zoneHeld[side].add(e.pointerId); el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ } e.preventDefault(); });
+      const off = (e) => { zoneHeld[side].delete(e.pointerId); if (!zoneHeld[side].size) el.classList.remove('on'); };
+      el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off);
+    };
+    zone($('rc-zl'), 'l'); zone($('rc-zr'), 'r');
+    touchZones = () => (zoneHeld.l.size ? 1 : 0) - (zoneHeld.r.size ? 1 : 0);
   }
   // look around: drag on the canvas rotates the chase / cockpit view, springs back on release
   const look = { yaw: 0, pitch: 0, drag: false, lx: 0, ly: 0 };
-  canvas.addEventListener('pointerdown', (e) => { if (camMode === 2) return; look.drag = true; look.lx = e.clientX; look.ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointerdown', (e) => { if (camMode === 2 || (touch && ctrl !== 'pro')) return; look.drag = true; look.lx = e.clientX; look.ly = e.clientY; canvas.setPointerCapture(e.pointerId); });
   canvas.addEventListener('pointermove', (e) => {
     if (!look.drag) return;
     look.yaw = clamp(look.yaw - (e.clientX - look.lx) * 0.008, -Math.PI, Math.PI);
@@ -989,6 +1067,18 @@ function createGame() {
       if (st && !padStartPrev) togglePause();
       padStartPrev = st;
     }
+    if (ctrl !== 'pro' && player) {
+      // easy / tilt: the player only chooses where on the track to be; speed is automatic
+      let cmd = steerT + touchZones();
+      if (pad && analog != null) cmd = analog;
+      if (ctrl === 'tilt' && tilt.ok) {
+        const d = tilt.raw - tilt.zero;
+        const a = Math.abs(d) < 3 ? 0 : (d - Math.sign(d) * 3) / 20;
+        cmd = clamp(-a, -1, 1) + steerT;
+      }
+      easyDrive(dt, clamp(cmd, -1, 1), Math.max(brk, touchBrake));
+      return;
+    }
     thr = Math.max(thr, touchGas); brk = Math.max(brk, touchBrake);
     if (touchSteer != null) analog = touchSteer;
     if (analog != null) input.steer = lerp(input.steer, analog, 1 - Math.exp(-dt * 18));
@@ -1002,6 +1092,47 @@ function createGame() {
     // pedals ramp in (a key press is not a 0→100% stab), release quickly
     input.throttle += clamp(thr - input.throttle, -8 * dt, (pad || touchGas ? 10 : 4) * dt);
     input.brake += clamp(brk - input.brake, -10 * dt, 9 * dt);
+  }
+
+  // Assisted driving for phones: the input moves a target lane across the track, the car
+  // steers itself towards that lane (falling back to the racing line when the finger lifts)
+  // and throttle / brake follow the circuit's safe-speed profile.
+  const ez = { off: null, stuck: 0, braking: false };
+  function easyDrive(dt, cmd, userBrake) {
+    const c = player;
+    const u = c.u;
+    const lim = HALF_W - 1.2;
+    if (ez.off == null) ez.off = clamp(c.lat || 0, -lim, lim);
+    const lookIdx = c.idx + (10 + Math.abs(u) * 0.55) / DS;
+    if (cmd) ez.off = clamp(ez.off + cmd * 8.5 * dt, -lim, lim);
+    else ez.off += (sampleAt(lookIdx).line - ez.off) * (1 - Math.exp(-dt * 0.7));
+    if (Math.abs(c.lat) > HALF_W + 0.5) ez.off += (clamp(c.lat, -lim, lim) - ez.off) * 0.2; // off track: rejoin gently
+    // steering towards a point ahead on the chosen lane
+    const a = sampleAt(lookIdx);
+    const px = a.x + a.tz * ez.off, pz = a.z - a.tx * ez.off;
+    let dh = Math.atan2(px - c.x, pz - c.z) - c.h;
+    dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    const maxSt = Math.max(0.055, 0.32 - Math.abs(u) * 0.0031);
+    const want = clamp((dh * 1.35 - c.r * 0.06) / maxSt, -1, 1);
+    input.steer = lerp(input.steer, want, 1 - Math.exp(-dt * 12));
+    // speed: lowest safe speed over the next stretch (reaction margin), slower off track
+    let target = 1e9;
+    const span = Math.max(4, (Math.abs(u) * 0.45) / DS);
+    for (let k = 0; k <= span; k += 2) target = Math.min(target, VMAX[(Math.floor(c.idx + k) % N + N) % N]);
+    target *= 0.97;
+    if (Math.abs(c.lat) > HALF_W + KERB_W) target = Math.min(target, 30);
+    if (Math.abs(dh) > 1.2) target = Math.min(target, 12); // pointing the wrong way: crawl round
+    let thr = u < target - 1 ? 1 : u < target ? 0.35 : 0;
+    let brk = u > target + 1.2 ? clamp((u - target) / 7, 0.25, 1) : 0;
+    if (userBrake > 0) { thr = 0; brk = Math.max(brk, userBrake); }
+    ez.braking = brk > 0.2;
+    input.throttle += clamp(thr - input.throttle, -8 * dt, 8 * dt);
+    input.brake += clamp(brk - input.brake, -10 * dt, 10 * dt);
+    // stuck against a wall or spun out: put the car back after a moment
+    if (state === 'race' && (c.lost || (Math.abs(u) < 2 && Math.abs(c.lat) > HALF_W + RUNOFF))) {
+      ez.stuck += dt;
+      if (ez.stuck > 2) { ez.stuck = 0; resetToTrack(); ez.off = 0; }
+    } else ez.stuck = 0;
   }
 
   // ---------- race state ----------
@@ -1065,7 +1196,10 @@ function createGame() {
     LAPS = +$('rc-o-laps').value;
     const nAI = +$('rc-o-ai').value;
     const skill = +$('rc-o-diff').value;
-    assist = $('rc-o-assist').value === '1';
+    assist = ctrl !== 'pro' || $('rc-o-assist').value === '1';
+    ez.off = null; ez.stuck = 0;
+    if (ctrl === 'tilt') await enableTilt();
+    if (ctrl !== 'pro' && camMode === 1) cycleCam();
     audio.init(); audio.resume();
     state = 'loading';
     $('rc-load').textContent = 'Загрузка болидов…';
@@ -1383,6 +1517,7 @@ function createGame() {
       if (lit !== (frame.lit || 0)) { frame.lit = lit; audio.beep(440, 0.15); }
       if (lightsT >= lightsGo) {
         state = 'race'; raceT = 0; frame.lit = 0;
+        tilt.zero = tilt.raw; // calibrate "straight" to how the phone is held at the start
         startLights.forEach((m) => m.color.setHex(0x220404));
         $('rc-lights').hidden = true;
         audio.beep(880, 0.4);
@@ -1440,6 +1575,11 @@ function createGame() {
       ledEls.forEach((e, k) => { e.className = rpmFrac > 0.55 + k * 0.03 ? (k < 5 ? 'g' : k < 10 ? 'r' : 'b') : ''; });
       wLedEls.forEach((e, k) => e.setAttribute('fill', rpmFrac > 0.62 + k * 0.035 ? (k < 4 ? '#00ff66' : k < 7 ? '#ff2020' : '#3d7bff') : '#222'));
       $('rc-thr').style.setProperty('--v', input.throttle);
+      if (ctrl !== 'pro') {
+        const as = $('rc-assist');
+        as.classList.toggle('brk', ez.braking);
+        $('rc-assist-t').textContent = ez.braking ? 'ТОРМОЖЕНИЕ' : input.throttle > 0.6 ? 'ГАЗ' : 'АВТОПИЛОТ СКОРОСТИ';
+      }
       $('rc-brk').style.setProperty('--v', input.brake);
       $('rc-time').textContent = fmt((raceT - player.lapStart) * 1000);
       const order = standings();
