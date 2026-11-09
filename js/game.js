@@ -9,8 +9,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090446';
-import { createBloom, lowPower } from './fx.js?v=202611090446';
+import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090534';
+import { createBloom, lowPower } from './fx.js?v=202611090534';
 
 const VER = new URL(import.meta.url).search;
 const asset = (p) => new URL(`../models/${p}${VER}`, import.meta.url).href;
@@ -888,8 +888,8 @@ function createGame() {
   try { ctrl = localStorage.getItem('f1p-race-ctrl') || ctrl; } catch { /* storage blocked */ }
   const HOWTO = {
     easy: touch
-      ? 'Держите палец на левой или правой половине экрана — болид смещается в эту сторону. Отпустили — сам держит траекторию. Газ и торможение перед поворотами автоматические, кнопка «Тормоз» — если хотите притормозить сильнее.'
-      : '← → смещают болид по ширине трассы, газ и тормоз автоматические. ↓ — притормозить сильнее.',
+      ? 'Нажимайте и держите левую или правую половину экрана — болид поворачивает в эту сторону. Отпустили — он сам едет по изгибу трассы и не даёт вылететь в стену. Газ и торможение перед поворотами автоматические, «Тормоз» — притормозить сильнее.'
+      : '← → поворачивают, отпустили — болид сам едет по изгибу трассы. Газ и тормоз автоматические, ↓ — притормозить сильнее.',
     tilt: 'Наклоняйте телефон влево-вправо, как руль (держите горизонтально). Нулевое положение запоминается на старте. Газ и тормоз автоматические.',
     pro: touch
       ? 'Руль слева — крутите пальцем, педали справа. Полный контроль, как в симуляторе.'
@@ -1086,6 +1086,7 @@ function createGame() {
       easyDrive(dt, clamp(cmd, -1, 1), Math.max(brk, touchBrake));
       return;
     }
+    ez.on = false;
     thr = Math.max(thr, touchGas); brk = Math.max(brk, touchBrake);
     if (touchSteer != null) analog = touchSteer;
     if (analog != null) input.steer = lerp(input.steer, analog, 1 - Math.exp(-dt * 18));
@@ -1101,42 +1102,61 @@ function createGame() {
     input.brake += clamp(brk - input.brake, -10 * dt, 9 * dt);
   }
 
-  // Assisted driving for phones: the input moves a target lane across the track, the car
-  // steers itself towards that lane (falling back to the racing line when the finger lifts)
-  // and throttle / brake follow the circuit's safe-speed profile.
-  const ez = { off: null, stuck: 0, braking: false };
+  // Assisted driving for phones: ◀ ▶ steer the car directly; with no input a helper follows
+  // the bend at the current position (and keeps the car off the walls). Throttle / brake
+  // follow the circuit's safe-speed profile.
+  const ez = { off: null, stuck: 0, braking: false, on: false, yaw: 0 };
   function easyDrive(dt, cmd, userBrake) {
     const c = player;
-    const u = c.u;
-    const lim = HALF_W - 1.2;
-    if (ez.off == null) ez.off = clamp(c.lat || 0, -lim, lim);
-    const lookIdx = c.idx + (10 + Math.abs(u) * 0.55) / DS;
-    if (cmd) ez.off = clamp(ez.off + cmd * 8.5 * dt, -lim, lim);
-    else ez.off += (sampleAt(lookIdx).line - ez.off) * (1 - Math.exp(-dt * 0.7));
-    if (Math.abs(c.lat) > HALF_W + 0.5) ez.off += (clamp(c.lat, -lim, lim) - ez.off) * 0.2; // off track: rejoin gently
-    // steering towards a point ahead on the chosen lane
-    const a = sampleAt(lookIdx);
-    const px = a.x + a.tz * ez.off, pz = a.z - a.tx * ez.off;
-    let dh = Math.atan2(px - c.x, pz - c.z) - c.h;
+    const u = c.u || 0;
+    const lat = Number.isFinite(c.lat) ? c.lat : 0; // not located yet on the very first frame
+    const lim = HALF_W - 1.0;
+    if (ez.off == null) ez.off = clamp(lat, -lim, lim);
+    const lookIdx = c.idx + (9 + Math.abs(u) * 0.5) / DS;
+    if (cmd) ez.off = clamp(lat, -lim, lim); // the player decides where the car goes
+    else ez.off += (sampleAt(lookIdx).line * 0.6 - ez.off) * (1 - Math.exp(-dt * 0.25)); // drift gently to the racing line
+    if (Math.abs(lat) > lim + 1.5) ez.off = clamp(lat, -lim, lim) * 0.8; // off track: steer back on
+    // heading control: the finger asks for an angle to the track (wider when slow), with no input
+    // the car lines up with the track and closes the gap to the held lateral position
+    const a = sampleAt(c.idx + (4 + Math.abs(u) * 0.18) / DS);
+    const psiT = Math.atan2(a.tx, a.tz);
+    const latErr = ez.off - lat;
+    const edge = clamp((lim + 0.8 - Math.abs(lat)) / 1.6, 0, 1);
+    const user = cmd * (Math.sign(cmd) === Math.sign(lat) ? edge : 1);
+    const maxAng = clamp(0.42 - Math.abs(u) * 0.0065, 0.11, 0.42); // ~14° at 100 km/h, ~6° flat out
+    const desired = user
+      ? psiT + user * maxAng
+      : psiT + clamp(Math.atan((1.6 * latErr) / Math.max(Math.abs(u), 6)), -0.3, 0.3);
+    let dh = desired - c.h;
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     const maxSt = Math.max(0.055, 0.32 - Math.abs(u) * 0.0031);
-    const want = clamp((dh * 1.35 - c.r * 0.06) / maxSt, -1, 1);
-    input.steer = lerp(input.steer, want, 1 - Math.exp(-dt * 12));
+    const want = clamp((dh * 1.8 - (c.r || 0) * 0.08) / maxSt, -1, 1);
+    // arcade yaw assist (applied inside the physics step): turn rate that brings the car onto the
+    // desired heading, capped at ~2.5 g of cornering so it stays believable
+    const rCap = Math.min(1.5, (G * 3.5) / Math.max(Math.abs(u), 6));
+    // feed-forward: the turn rate the bend itself needs (track heading change per metre × speed)
+    const b0 = sampleAt(c.idx), b1 = sampleAt(c.idx + 12 / DS);
+    let bend = Math.atan2(b1.tx, b1.tz) - Math.atan2(b0.tx, b0.tz);
+    bend = Math.atan2(Math.sin(bend), Math.cos(bend)) / 12;
+    const yawFF = user ? 0 : bend * u;
+    ez.yaw = Number.isFinite(dh) ? clamp(yawFF + dh * 4.5, -rCap, rCap) : 0;
+    ez.on = Math.abs(u) > 1.5;
+    if (Number.isFinite(want)) input.steer = lerp(Number.isFinite(input.steer) ? input.steer : 0, want, 1 - Math.exp(-dt * 14));
     // speed: lowest safe speed over the next stretch (reaction margin), slower off track
     let target = 1e9;
     const span = Math.max(4, (Math.abs(u) * 0.45) / DS);
     for (let k = 0; k <= span; k += 2) target = Math.min(target, VMAX[(Math.floor(c.idx + k) % N + N) % N]);
-    target *= 0.97;
-    if (Math.abs(c.lat) > HALF_W + KERB_W) target = Math.min(target, 30);
+    target *= 0.93; // the autopilot keeps a safety margin
+    if (Math.abs(lat) > HALF_W + KERB_W) target = Math.min(target, 30);
     if (Math.abs(dh) > 1.2) target = Math.min(target, 12); // pointing the wrong way: crawl round
     let thr = u < target - 1 ? 1 : u < target ? 0.35 : 0;
-    let brk = u > target + 1.2 ? clamp((u - target) / 7, 0.25, 1) : 0;
+    let brk = u > target + 0.6 ? clamp((u - target) / 3, 0.5, 1) : 0;
     if (userBrake > 0) { thr = 0; brk = Math.max(brk, userBrake); }
     ez.braking = brk > 0.2;
     input.throttle += clamp(thr - input.throttle, -8 * dt, 8 * dt);
     input.brake += clamp(brk - input.brake, -10 * dt, 10 * dt);
     // stuck against a wall or spun out: put the car back after a moment
-    if (state === 'race' && (c.lost || (Math.abs(u) < 2 && Math.abs(c.lat) > HALF_W + RUNOFF))) {
+    if (state === 'race' && (c.lost || (Math.abs(u) < 2 && Math.abs(lat) > HALF_W + RUNOFF))) {
       ez.stuck += dt;
       if (ez.stuck > 2) { ez.stuck = 0; resetToTrack(); ez.off = 0; }
     } else ez.stuck = 0;
@@ -1342,6 +1362,11 @@ function createGame() {
       w *= 1 - Math.min(1, k * 0.45 * dt);
       const rMax = (surf.mu * (G + (K_DF * u * u) / M)) / Math.abs(u);
       r = clamp(r, -rMax * 1.05, rMax * 1.05);
+    }
+    if (ez.on && ctrl !== 'pro' && c === player) {
+      // easy / tilt: follow the requested turn rate and kill sideways sliding
+      r += (ez.yaw - r) * Math.min(1, 35 * dt);
+      w *= 1 - Math.min(1, 18 * dt);
     }
     if (!canDrive || (thr === 0 && Math.abs(u) < 0.25 && brk > 0 && !canDrive)) { u *= 1 - dt * 6; }
     c.u = u; c.w = w; c.r = r;
@@ -1683,7 +1708,7 @@ function createGame() {
   resize();
   document.addEventListener('visibilitychange', () => { if (document.hidden && ['intro', 'lights', 'race'].includes(state)) togglePause(); });
 
-  if (new URLSearchParams(location.search).has('debug')) window.__race = { get state() { return state; }, input, get player() { return player; }, startRace, keys, cycleCam, togglePause, choose: (id) => { choice = TEAMS.find((t) => t.id === id) || choice; } };
+  if (new URLSearchParams(location.search).has('debug')) window.__race = { get state() { return state; }, get t() { return raceT; }, input, get player() { return player; }, get ez() { return ez; }, get ctrl() { return ctrl; }, zones: () => touchZones(), startRace, keys, cycleCam, togglePause, choose: (id) => { choice = TEAMS.find((t) => t.id === id) || choice; } };
 
   return {
     resume() {
