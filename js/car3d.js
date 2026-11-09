@@ -6,9 +6,9 @@ import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
-import { TEAMS, hex } from './teams.js?v=202611090443';
+import { TEAMS, hex } from './teams.js?v=202611090446';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { createBloom, lowPower } from './fx.js?v=202611090443';
+import { createBloom, lowPower } from './fx.js?v=202611090446';
 
 const TEAL = 0x00d2be;
 const CYAN = 0x00f0ff;

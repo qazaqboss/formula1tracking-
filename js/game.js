@@ -9,8 +9,8 @@ import { OrbitControls } from './vendor/OrbitControls.js';
 import { GLTFLoader } from './vendor/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from './vendor/jsm/loaders/DRACOLoader.js';
 import { RoomEnvironment } from './vendor/jsm/environments/RoomEnvironment.js';
-import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090443';
-import { createBloom, lowPower } from './fx.js?v=202611090443';
+import { TEAMS, MODEL_FILES, hex } from './teams.js?v=202611090446';
+import { createBloom, lowPower } from './fx.js?v=202611090446';
 
 const VER = new URL(import.meta.url).search;
 const asset = (p) => new URL(`../models/${p}${VER}`, import.meta.url).href;
@@ -846,7 +846,6 @@ function createGame() {
         <p class="muted">Трасса «Неон Сити» · 3,4 км · трибуны, поребрики, гравий. Реалистичная управляемость: прижимная сила, срыв задней оси на газу, торможение с перегрузкой до 5g.</p>
         <h4>Болид</h4>
         <div class="rc-cars" id="rc-cars"></div>
-        <div class="rc-rotate">📱↻ Поверните телефон горизонтально — так удобнее</div>
         <h4>Управление</h4>
         <div class="rc-ctrl" id="rc-ctrl">
           <button data-c="easy"><b>Простое</b><small>газ и тормоз сами, вы — ◀ ▶</small></button>
@@ -933,7 +932,15 @@ function createGame() {
     }
     if (!tilt.listening) {
       tilt.listening = true;
-      addEventListener('deviceorientation', (e) => { if (e.beta == null) return; tilt.raw = tiltAngle(e) || 0; tilt.ok = true; });
+      addEventListener('deviceorientation', (e) => {
+        if (e.beta == null) return;
+        tilt.raw = tiltAngle(e) || 0; tilt.ok = true;
+        if (tilt.recal) { tilt.recal = false; tilt.zero = tilt.raw; }
+      });
+      // turning the phone mid-race changes which axis is "steering": re-zero on the next reading
+      const recal = () => { tilt.recal = true; msg('Наклон откалиброван', 900); };
+      screen.orientation?.addEventListener('change', recal);
+      addEventListener('orientationchange', recal);
     }
   }
   const fmt = (ms) => {
@@ -1624,19 +1631,23 @@ function createGame() {
     if (camMode === 2) {
       orbit.target.lerp(tmp.set(p.x, 1.2, p.z), 1 - Math.exp(-dt * 8));
       orbit.update();
-      camera.fov = 55; camera.updateProjectionMatrix();
+      camera.fov = 55 * fovK; camera.updateProjectionMatrix();
       return;
     }
+    // tall (portrait) screens: keep roughly the same horizontal field of view as landscape
+    const fovK = camera.aspect < 1 ? Math.min(1.6, 1 / Math.sqrt(camera.aspect)) : 1;
+    const tall = camera.aspect < 1 ? 1 : 0;
     if (camMode === 0) {
-      const back = 9.6 + speed * 0.022, height = 3.0 + look.pitch * 6;
+      const back = 9.6 + speed * 0.022 + tall * 3, height = 3.0 + tall * 1.6 + look.pitch * 6;
       const yaw = p.h + look.yaw;
       tmp.set(p.x - Math.sin(yaw) * back, height, p.z - Math.cos(yaw) * back);
       camPos.lerp(tmp, 1 - Math.exp(-dt * 7));
       camera.position.copy(camPos);
       camera.position.x += jitter() * 0.35; camera.position.y += jitter() * 0.25;
-      camLook.set(p.x + Math.sin(p.h) * 4, 1.1, p.z + Math.cos(p.h) * 4);
+      const ahead = 4 + tall * 10;
+      camLook.set(p.x + Math.sin(p.h) * ahead, 1.1 + tall * 0.6, p.z + Math.cos(p.h) * ahead);
       camera.lookAt(camLook);
-      camera.fov = lerp(camera.fov, 60 + clamp(speed / 90, 0, 1) * 14, 1 - Math.exp(-dt * 3));
+      camera.fov = lerp(camera.fov, (60 + clamp(speed / 90, 0, 1) * 14) * fovK, 1 - Math.exp(-dt * 3));
       camera.updateProjectionMatrix();
     } else {
       p.group.updateMatrixWorld(true);
@@ -1647,7 +1658,7 @@ function createGame() {
       fwd.set(Math.sin(yaw), -0.06 - look.pitch * 0.5 + jitter() * 0.02, Math.cos(yaw));
       camera.lookAt(tmp.add(fwd));
       camera.rotateZ(clamp(-(p.ay || 0) * 0.002, -0.05, 0.05));
-      camera.fov = lerp(camera.fov, 72 + clamp(speed / 90, 0, 1) * 8, 1 - Math.exp(-dt * 3));
+      camera.fov = lerp(camera.fov, (72 + clamp(speed / 90, 0, 1) * 8) * Math.min(fovK, 1.35), 1 - Math.exp(-dt * 3));
       camera.updateProjectionMatrix();
     }
   }

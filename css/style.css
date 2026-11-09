@@ -655,8 +655,6 @@ body.racing .footer { display: none; }
 .rc-ctrl button.on b { color: var(--cyan); }
 .rc-howto { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--yellow); background: rgba(252, 238, 10, .06); font-size: .82rem; color: #d7deef; }
 #race-ui:not(.ctrl-pro) .rc-o-pro { display: none; }
-.rc-rotate { display: none; margin: 8px 0 0; padding: 8px 12px; border: 1px dashed var(--line2); color: var(--cyan); font: 600 .74rem var(--mono); }
-@media (pointer: coarse) and (orientation: portrait) { .rc-rotate { display: block; } }
 
 /* phones: compact menu and HUD */
 @media (max-width: 760px), (max-height: 500px) {
@@ -695,7 +693,35 @@ body.racing .footer { display: none; }
 .rc-menu { grid-template-columns: minmax(0, 1fr); }
 .rc-panel { width: 100%; max-width: 760px; min-width: 0; justify-self: center; }
 /* landscape phone: the race takes the whole screen while driving */
-@media (max-height: 500px) and (pointer: coarse) {
+/* phones (any orientation): the race takes the whole screen while driving */
+@media (pointer: coarse) {
   body:has(#view-race:not([hidden]) #rc-hud:not([hidden])) .topbar { display: none; }
   body:has(#view-race:not([hidden]) #rc-hud:not([hidden])) .race-wrap { height: 100svh; }
+  body:has(#view-race:not([hidden]) #rc-hud:not([hidden])) { overflow: hidden; overscroll-behavior: none; }
+}
+/* portrait phone: HUD stacked at the top, controls in the thumb zone at the bottom */
+@media (orientation: portrait) and (max-width: 760px) {
+  .rc-tl { left: 8px; top: calc(8px + env(safe-area-inset-top)); grid-template-columns: auto auto; align-items: start; gap: 6px; }
+  .rc-tl #rc-map { grid-column: 1 / -1; width: 96px; height: 96px; }
+  .rc-tr { right: 8px; top: calc(8px + env(safe-area-inset-top)); }
+  .rc-dash { top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); padding: 4px 14px 6px; }
+  .rc-dash .rc-leds i { width: 8px; height: 8px; }
+  .rc-speed b, .rc-gear { font-size: 1.9rem; }
+  .rc-zone { top: 45%; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .rc-zone span { width: 84px; height: 84px; font-size: 2.1rem; }
+  .rc-ebrake { bottom: calc(26px + env(safe-area-inset-bottom)); width: 116px; height: 64px; }
+  .rc-assist { bottom: calc(100px + env(safe-area-inset-bottom)); }
+  .rc-lights { top: 26%; gap: 6px; padding: 8px 10px; }
+  .rc-lights b { width: 22px; height: 22px; }
+  .rc-msg { top: 38%; }
+  .rc-wheel { width: 180px; left: 10px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .rc-pedals button { width: 74px; height: 104px; }
+  #rc-gas { height: 128px; }
+}
+/* landscape phone: respect the notch / home indicator */
+@media (orientation: landscape) and (max-height: 500px) {
+  #rc-zl { padding-left: calc(18px + env(safe-area-inset-left)); }
+  #rc-zr { padding-right: calc(18px + env(safe-area-inset-right)); }
+  .rc-tl { left: calc(10px + env(safe-area-inset-left)); }
+  .rc-tr { right: calc(10px + env(safe-area-inset-right)); }
 }
